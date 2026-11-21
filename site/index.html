@@ -79,7 +79,7 @@
     <div class="meta">
       <span>更新時間：<b id="updated">載入中…</b></span>
       <span>收錄範圍：近 <span id="days">7</span> 天</span>
-      <span>每週一自動更新</span>
+      <span>下次更新：<b id="next">計算中…</b></span>
       <span>製作者：<b>JH CHIU MD</b> × Claude 5.5</span>
     </div>
   </div>
@@ -185,6 +185,19 @@ function render() {
       </div>
     </article>`).join("");
 }
+
+// 下次更新：下一個週一 00:00 UTC（= 台灣時間週一 08:00）
+function nextUpdate() {
+  const now = new Date();
+  const n = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  let add = (1 - n.getUTCDay() + 7) % 7;
+  if (add === 0 && now >= n) add = 7;
+  n.setUTCDate(n.getUTCDate() + add);
+  const tw = new Date(n.getTime() + 8 * 3600e3);
+  const p = x => String(x).padStart(2, "0");
+  return `${tw.getUTCFullYear()}-${p(tw.getUTCMonth() + 1)}-${p(tw.getUTCDate())}（週一）08:00 (UTC+8)`;
+}
+$("next").textContent = nextUpdate();
 
 load();
 fetch("data.json", {cache: "no-store"})
