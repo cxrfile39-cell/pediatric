@@ -5,91 +5,203 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>兒科次專科最新文獻週報 | Pediatric Literature Weekly</title>
 <meta name="description" content="依兒科次專科分類，每週一自動更新 PubMed 最新 journal article、review 與 guideline。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --c1:#12355B;          /* 主色：深海軍藍 */
     --c2:#E4572E;          /* 輔色：珊瑚橘 */
-    --c1-soft:#E8EEF5;
-    --c2-soft:#FCEBE5;
-    --ink:#1B2430; --muted:#5B6675; --line:#D9E0E8; --bg:#F6F8FB;
+    --c1-soft:#E6EDF6;
+    --c2-soft:#FDECE6;
+    --ink:#1B2430; --muted:#5B6675; --line:#D6DFEA; --bg:#FBF8F4;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,"Segoe UI",sans-serif;
-       color:var(--ink);background:var(--bg);line-height:1.55}
+  body{margin:0;font-family:"Huninn","Zen Maru Gothic","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+       color:var(--ink);line-height:1.6;
+       background:var(--bg) radial-gradient(circle,rgba(18,53,91,.07) 1.6px,transparent 1.8px) 0 0/22px 22px}
   a{color:var(--c1)}
-  header{background:var(--c1);color:#fff;padding:28px 20px 22px;border-bottom:6px solid var(--c2)}
   .wrap{max-width:1180px;margin:0 auto}
-  header h1{margin:0;font-size:clamp(1.35rem,3.2vw,2rem);letter-spacing:.02em}
-  header h1 span{color:var(--c2)}
-  header p{margin:.4rem 0 0;opacity:.88;font-size:.95rem}
-  .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font-size:.88rem}
-  .meta b{color:#fff;background:var(--c2);padding:1px 8px;border-radius:4px;font-weight:600}
-  main{display:grid;grid-template-columns:300px 1fr;gap:22px;padding:22px 20px 40px}
+
+  /* ---------- Header：夜空、雲朵、氣球、星星 ---------- */
+  header{position:relative;background:var(--c1);color:#fff;padding:34px 20px 70px;overflow:hidden}
+  header .deco{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .twinkle{animation:tw 2.4s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
+  .twinkle.d2{animation-delay:.8s}.twinkle.d3{animation-delay:1.6s}
+  @keyframes tw{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
+  .float{animation:fl 5s ease-in-out infinite;transform-box:fill-box}
+  @keyframes fl{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
+  header .wrap{position:relative;display:flex;gap:18px;align-items:center}
+  .mascot{flex:none;width:86px;height:86px;animation:bob 3s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-6px) rotate(6deg)}}
+  header h1{margin:0;font-size:clamp(1.45rem,3.4vw,2.2rem);letter-spacing:.04em;font-weight:700}
+  header h1 span{color:var(--c2);display:inline-block;background:#fff;padding:0 .4em;border-radius:14px;transform:rotate(-2deg);margin-left:.15em}
+  header p{margin:.5rem 0 0;opacity:.9;font-size:.95rem}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:14px;font-size:.86rem}
+  .meta>span{background:rgba(255,255,255,.12);border-radius:999px;padding:3px 12px}
+  .meta b{color:#fff;background:var(--c2);padding:1px 9px;border-radius:999px;font-weight:700}
+  .wave{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:46px;display:block}
+  .balloons{transform:translateX(110px)}
+  @media (max-width:1100px){.balloons{display:none}}
+  .meta b{white-space:nowrap}
+  @media (max-width:600px){
+    .mascot{width:58px;height:58px}
+    header .wrap{align-items:flex-start}
+    header{padding:26px 16px 64px}
+    .meta{font-size:.8rem}
+    .list{max-height:300px;overflow:auto;padding-right:4px;border-bottom:2px dashed var(--c1-soft)}
+  }
+
+  /* ---------- 版面 ---------- */
+  main{display:grid;grid-template-columns:300px 1fr;gap:24px;padding:18px 20px 40px}
   @media (max-width:860px){main{grid-template-columns:1fr}}
-  aside{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;align-self:start;position:sticky;top:12px;
-        max-height:calc(100vh - 24px);overflow:auto}
+  aside{background:#fff;border:2.5px dashed var(--c1);border-radius:24px;padding:18px;align-self:start;position:sticky;top:12px;
+        max-height:calc(100vh - 24px);overflow:auto;box-shadow:6px 6px 0 var(--c2-soft)}
   @media (max-width:860px){aside{position:static;max-height:none}}
-  aside h2{font-size:.95rem;margin:0 0 10px;color:var(--c1);border-left:4px solid var(--c2);padding-left:8px}
-  .btns{display:flex;gap:8px;margin-bottom:10px}
-  button{font:inherit;cursor:pointer;border-radius:6px;padding:6px 12px;border:1.5px solid var(--c1);background:#fff;color:var(--c1);font-weight:600;font-size:.86rem}
-  button.primary{background:var(--c1);color:#fff}
-  button:hover{border-color:var(--c2);color:var(--c2)}
-  button.primary:hover{background:var(--c2);color:#fff}
-  .list label{display:flex;align-items:flex-start;gap:8px;padding:5px 4px;border-radius:5px;font-size:.88rem;cursor:pointer}
-  .list label:hover{background:var(--c1-soft)}
-  .list input{accent-color:var(--c2);margin-top:3px}
-  .list .n{margin-left:auto;color:var(--muted);font-size:.78rem;font-variant-numeric:tabular-nums}
-  .types{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 16px}
-  .types label{border:1.5px solid var(--c1);border-radius:999px;padding:3px 10px;font-size:.82rem;cursor:pointer;user-select:none;color:var(--c1)}
+  aside h2{font-size:1rem;margin:0 0 10px;color:var(--c1);display:flex;align-items:center;gap:6px}
+  aside h2 svg{width:20px;height:20px}
+
+  /* 貼紙風按鈕 */
+  .btns{display:flex;gap:10px;margin-bottom:12px}
+  button{font:inherit;cursor:pointer;border-radius:999px;padding:6px 16px;border:2.5px solid var(--c1);background:#fff;color:var(--c1);
+         font-weight:700;font-size:.9rem;box-shadow:0 4px 0 var(--c1);transition:transform .1s,box-shadow .1s}
+  button.primary{background:var(--c2);border-color:var(--c1);color:#fff}
+  button:hover{transform:translateY(-2px);box-shadow:0 6px 0 var(--c1)}
+  button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--c1)}
+
+  /* 圓圓的勾選框 */
+  .list label{display:flex;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:14px;font-size:.88rem;cursor:pointer;transition:background .15s}
+  .list label:hover{background:var(--c2-soft)}
+  .list input{appearance:none;flex:none;width:19px;height:19px;margin:2px 0 0;border:2.5px solid var(--c1);border-radius:7px;background:#fff;
+              display:grid;place-content:center;cursor:pointer;transition:transform .15s}
+  .list input:checked{background:var(--c2);border-color:var(--c2);transform:rotate(-8deg)}
+  .list input:checked::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+  .list .n{margin-left:auto;flex:none;min-width:26px;text-align:center;color:var(--c1);background:var(--c1-soft);
+           border-radius:999px;font-size:.76rem;padding:0 7px;font-variant-numeric:tabular-nums}
+
+  .types{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 18px}
+  .types label{border:2.5px solid var(--c1);border-radius:999px;padding:3px 12px;font-size:.84rem;cursor:pointer;user-select:none;
+               color:var(--c1);background:#fff;transition:transform .15s}
+  .types label:hover{transform:rotate(-3deg) scale(1.05)}
   .types input{display:none}
   .types label.on{background:var(--c1);color:#fff}
+
   .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
-  .toolbar input[type=search]{flex:1;min-width:200px;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font:inherit}
-  .toolbar input[type=search]:focus{outline:none;border-color:var(--c2)}
-  select{font:inherit;padding:8px;border:1.5px solid var(--line);border-radius:8px;background:#fff}
-  .count{color:var(--muted);font-size:.9rem;margin-bottom:10px}
-  .count b{color:var(--c2)}
-  article.card{background:#fff;border:1px solid var(--line);border-left:5px solid var(--c1);border-radius:8px;padding:14px 16px;margin-bottom:12px}
-  article.card.Guideline{border-left-color:var(--c2)}
-  .card h3{margin:0 0 6px;font-size:1.02rem;line-height:1.4}
+  .search{flex:1;min-width:200px;position:relative}
+  .search svg{position:absolute;left:14px;top:50%;width:20px;height:20px;transform:translateY(-50%)}
+  .search input{width:100%;padding:11px 14px 11px 44px;border:2.5px solid var(--c1);border-radius:999px;font:inherit;background:#fff}
+  .search input:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 4px var(--c2-soft)}
+  select{font:inherit;padding:9px 14px;border:2.5px solid var(--c1);border-radius:999px;background:#fff;color:var(--c1)}
+  .count{color:var(--muted);font-size:.92rem;margin:0 0 12px 6px}
+  .count b{color:#fff;background:var(--c2);border-radius:999px;padding:0 9px}
+
+  /* 卡片 */
+  article.card{position:relative;background:#fff;border:2.5px solid var(--c1);border-radius:22px;padding:16px 18px 14px 20px;margin-bottom:16px;
+               box-shadow:0 5px 0 var(--c1-soft);transition:transform .2s,box-shadow .2s}
+  article.card:hover{transform:translateY(-3px) rotate(-.3deg);box-shadow:0 9px 0 var(--c2-soft)}
+  article.card::before{content:"";position:absolute;top:-9px;right:26px;width:46px;height:16px;border-radius:4px;
+                       background:var(--c2-soft);border:1.5px dashed var(--c2);transform:rotate(4deg)}
+  article.card.Guideline{border-color:var(--c2)}
+  article.card.Guideline::before{background:var(--c1-soft);border-color:var(--c1)}
+  .card h3{margin:0 0 6px;font-size:1.04rem;line-height:1.45}
   .card h3 a{text-decoration:none;color:var(--ink)}
   .card h3 a:hover{color:var(--c2)}
   .sub{font-size:.85rem;color:var(--muted)}
-  .sub i{color:var(--c1);font-style:normal;font-weight:600}
-  .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-  .tag{font-size:.74rem;padding:2px 8px;border-radius:4px;background:var(--c1-soft);color:var(--c1)}
-  .tag.type{background:var(--c1);color:#fff;font-weight:600}
+  .sub i{color:var(--c1);font-style:normal;font-weight:700}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .tag{font-size:.75rem;padding:2px 10px;border-radius:999px;background:var(--c1-soft);color:var(--c1)}
+  .tag.type{background:var(--c1);color:#fff;font-weight:700}
   .tag.type.Guideline{background:var(--c2)}
-  .tag.type.Review{background:#fff;color:var(--c1);border:1px solid var(--c1)}
-  details{margin-top:8px;font-size:.9rem}
-  summary{cursor:pointer;color:var(--c2);font-weight:600}
-  details p{white-space:pre-line;margin:.5rem 0 0;color:#2F3A47}
-  .links{margin-top:8px;font-size:.84rem;display:flex;gap:14px}
-  .empty{background:#fff;border:1px dashed var(--line);border-radius:8px;padding:30px;text-align:center;color:var(--muted)}
-  footer{background:var(--c1);color:#fff;text-align:center;padding:20px;font-size:.88rem;border-top:6px solid var(--c2)}
-  footer strong{color:var(--c2)}
-  footer small{display:block;opacity:.75;margin-top:6px}
+  .tag.type.Review{background:#fff;color:var(--c1);border:2px solid var(--c1)}
+  details{margin-top:10px;font-size:.9rem}
+  summary{cursor:pointer;color:var(--c2);font-weight:700;list-style:none;display:inline-flex;align-items:center;gap:6px}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"+";display:grid;place-content:center;width:20px;height:20px;border-radius:50%;background:var(--c2);color:#fff;font-size:.9rem;line-height:1}
+  details[open] summary::before{content:"–"}
+  details p{white-space:pre-line;margin:.6rem 0 0;padding:12px 14px;background:var(--bg);border-radius:14px;color:#2F3A47}
+  .links{margin-top:10px;font-size:.84rem;display:flex;gap:10px;flex-wrap:wrap}
+  .links a{text-decoration:none;border:2px solid var(--c1);border-radius:999px;padding:1px 11px;font-weight:700}
+  .links a:hover{background:var(--c1);color:#fff}
+  .empty{background:#fff;border:2.5px dashed var(--c1);border-radius:24px;padding:30px;text-align:center;color:var(--muted)}
+  .empty svg{width:110px;height:110px;display:block;margin:0 auto 8px}
+
+  /* ---------- Footer：積木 ---------- */
+  footer{position:relative;background:var(--c1);color:#fff;text-align:center;padding:64px 20px 26px;font-size:.9rem;margin-top:20px}
+  footer .wave{top:-1px;bottom:auto;transform:rotate(180deg)}
+  .blocks{display:flex;justify-content:center;gap:6px;margin-bottom:12px}
+  .blocks span{width:34px;height:34px;display:grid;place-content:center;border-radius:8px;font-weight:700;font-size:1.05rem;
+               background:var(--c2);color:#fff;box-shadow:inset 0 -4px 0 rgba(0,0,0,.15);animation:hop 2.6s ease-in-out infinite}
+  .blocks span:nth-child(even){background:#fff;color:var(--c1)}
+  .blocks span:nth-child(2){animation-delay:.15s}.blocks span:nth-child(3){animation-delay:.3s}
+  .blocks span:nth-child(4){animation-delay:.45s}.blocks span:nth-child(5){animation-delay:.6s}
+  @keyframes hop{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px) rotate(-6deg)}}
+  footer strong{color:var(--c2);background:#fff;border-radius:999px;padding:0 10px}
+  footer small{display:block;opacity:.75;margin-top:10px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <header>
+  <svg class="deco" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="#fff" opacity=".12">
+      <path d="M90 90a26 26 0 0 1 50-10 20 20 0 0 1 32 16 16 16 0 0 1-2 32H96a22 22 0 0 1-6-38z"/>
+      <path d="M760 50a30 30 0 0 1 58-12 24 24 0 0 1 38 20 18 18 0 0 1-2 36H766a26 26 0 0 1-6-44z"/>
+    </g>
+    <g fill="#fff">
+      <path class="twinkle" d="M300 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/>
+      <path class="twinkle d2" d="M640 120l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+      <path class="twinkle d3" d="M1120 60l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/>
+      <circle class="twinkle d2" cx="480" cy="30" r="3"/><circle class="twinkle" cx="980" cy="160" r="3"/>
+      <circle class="twinkle d3" cx="200" cy="190" r="2.5"/>
+    </g>
+    <g class="balloons"><g class="float">
+      <path d="M1040 230 q-8 30 6 60" stroke="#fff" stroke-width="2" fill="none" opacity=".6"/>
+      <ellipse cx="1040" cy="190" rx="30" ry="38" fill="#E4572E"/>
+      <ellipse cx="1030" cy="176" rx="7" ry="11" fill="#fff" opacity=".45"/>
+      <path d="M1034 227h12l-6 8z" fill="#E4572E"/>
+    </g>
+    <g class="float" style="animation-delay:-2s">
+      <path d="M1110 210 q6 30 -4 70" stroke="#fff" stroke-width="2" fill="none" opacity=".6"/>
+      <ellipse cx="1110" cy="178" rx="22" ry="28" fill="#fff"/>
+      <ellipse cx="1103" cy="168" rx="5" ry="8" fill="#12355B" opacity=".15"/>
+      <path d="M1105 205h10l-5 7z" fill="#fff"/>
+    </g></g>
+  </svg>
   <div class="wrap">
-    <h1>兒科次專科 <span>最新文獻週報</span></h1>
-    <p>Pediatric Subspecialty Literature Weekly — 收錄 PubMed 最新 Journal Article / Review / Guideline</p>
-    <div class="meta">
-      <span>更新時間：<b id="updated">載入中…</b></span>
-      <span>收錄範圍：近 <span id="days">7</span> 天</span>
-      <span>下次更新：<b id="next">計算中…</b></span>
-      <span>製作者：<b>JH CHIU MD</b> × Claude 5.5</span>
+    <!-- 吉祥物：小星星醫師 -->
+    <svg class="mascot" viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M50 6l12.6 26.4 28.9 3.6-21.2 20 5.4 28.6L50 70.6 24.3 84.6l5.4-28.6-21.2-20 28.9-3.6z"
+            fill="#E4572E" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+      <circle cx="41" cy="46" r="4" fill="#12355B"/><circle cx="59" cy="46" r="4" fill="#12355B"/>
+      <circle cx="42.3" cy="44.6" r="1.3" fill="#fff"/><circle cx="60.3" cy="44.6" r="1.3" fill="#fff"/>
+      <ellipse cx="34" cy="55" rx="5" ry="3" fill="#fff" opacity=".45"/><ellipse cx="66" cy="55" rx="5" ry="3" fill="#fff" opacity=".45"/>
+      <path d="M44 55q6 6 12 0" stroke="#12355B" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- 聽診器 -->
+      <path d="M36 66q14 14 28 0" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="50" cy="75" r="4.5" fill="#12355B" stroke="#fff" stroke-width="2.5"/>
+    </svg>
+    <div>
+      <h1>兒科次專科<span>最新文獻週報</span></h1>
+      <p>Pediatric Subspecialty Literature Weekly — 收錄 PubMed 最新 Journal Article / Review / Guideline</p>
+      <div class="meta">
+        <span>更新時間 <b id="updated">載入中…</b></span>
+        <span>下次更新 <b id="next">計算中…</b></span>
+        <span>收錄範圍：近 <span id="days">7</span> 天</span>
+        <span>製作者 <b>JH CHIU MD</b> × Claude 5.5</span>
+      </div>
     </div>
   </div>
+  <svg class="wave" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 26 Q75 0 150 26 T300 26 T450 26 T600 26 T750 26 T900 26 T1050 26 T1200 26 V46 H0z" fill="#E4572E"/>
+    <path d="M0 34 Q75 10 150 34 T300 34 T450 34 T600 34 T750 34 T900 34 T1050 34 T1200 34 V46 H0z" fill="#FBF8F4"/>
+  </svg>
 </header>
 
 <main class="wrap">
   <aside>
-    <h2>文章類型</h2>
+    <h2><svg viewBox="0 0 24 24"><path d="M12 2l3 6.5 7 .9-5.1 4.9 1.3 7L12 17.8 5.8 21.3l1.3-7L2 9.4l7-.9z" fill="#E4572E"/></svg>文章類型</h2>
     <div class="types" id="types"></div>
-    <h2>次專科</h2>
+    <h2><svg viewBox="0 0 24 24"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z" fill="#E4572E"/></svg>次專科</h2>
     <div class="btns">
       <button class="primary" id="all">全選</button>
       <button id="none">全不選</button>
@@ -99,7 +211,10 @@
 
   <section>
     <div class="toolbar">
-      <input type="search" id="q" placeholder="搜尋標題、期刊、作者、摘要…">
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.8"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3.2" stroke-linecap="round"/></svg>
+        <input type="search" id="q" placeholder="搜尋標題、期刊、作者、摘要…" aria-label="搜尋">
+      </label>
       <select id="sort">
         <option value="date">依出版日期</option>
         <option value="journal">依期刊名稱</option>
@@ -111,11 +226,17 @@
 </main>
 
 <footer>
+  <svg class="wave" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 26 Q75 0 150 26 T300 26 T450 26 T600 26 T750 26 T900 26 T1050 26 T1200 26 V46 H0z" fill="#E4572E"/>
+    <path d="M0 34 Q75 10 150 34 T300 34 T450 34 T600 34 T750 34 T900 34 T1050 34 T1200 34 V46 H0z" fill="#FBF8F4"/>
+  </svg>
+  <div class="blocks" aria-hidden="true"><span>P</span><span>E</span><span>D</span><span>S</span><span>★</span></div>
   製作者 <strong>JH CHIU MD</strong> · 協作 <strong>Claude 5.5</strong>
   <small>資料來源：NCBI PubMed E-utilities。本頁僅供學術參考，臨床決策請以原文及專業判斷為準。</small>
 </footer>
 
 <script>
+const SLEEPY = '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 6l12.6 26.4 28.9 3.6-21.2 20 5.4 28.6L50 70.6 24.3 84.6l5.4-28.6-21.2-20 28.9-3.6z" fill="#E4572E" stroke="#12355B" stroke-width="3" stroke-linejoin="round"/><path d="M37 47q4 4 8 0M55 47q4 4 8 0" stroke="#12355B" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="50" cy="58" r="3.5" fill="#12355B"/><text x="74" y="20" font-size="14" fill="#12355B" font-weight="700">z z</text></svg>';
 const TYPES = ["Article", "Review", "Guideline"];
 const TYPE_LABEL = {Article: "Journal Article", Review: "Review", Guideline: "Guideline"};
 const state = {data: null, specs: new Set(), types: new Set(TYPES), q: "", sort: "date"};
@@ -167,7 +288,7 @@ function render() {
   if (state.sort === "journal") list = [...list].sort((a, b) => a.journal.localeCompare(b.journal) || b.sortDate.localeCompare(a.sortDate));
   $("count").innerHTML = `顯示 <b>${list.length}</b> 篇（共 ${state.data.articles.length} 篇）`;
   if (!list.length) {
-    $("results").innerHTML = `<div class="empty">${state.specs.size ? "沒有符合條件的文章" : "請至少勾選一個次專科"}</div>`;
+    $("results").innerHTML = `<div class="empty">${SLEEPY}${state.specs.size ? "沒有符合條件的文章" : "請至少勾選一個次專科"}</div>`;
     return;
   }
   $("results").innerHTML = list.map(a => `
@@ -210,7 +331,7 @@ fetch("data.json", {cache: "no-store"})
   })
   .catch(() => {
     $("updated").textContent = "尚無資料";
-    $("results").innerHTML = '<div class="empty">資料尚未產生。GitHub Actions 首次執行完成後即會顯示。</div>';
+    $("results").innerHTML = '<div class="empty">' + SLEEPY + '資料尚未產生。GitHub Actions 首次執行完成後即會顯示。</div>';
   });
 $("all").onclick = () => setAll(true);
 $("none").onclick = () => setAll(false);
