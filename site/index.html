@@ -73,7 +73,7 @@
   /* 圓圓的勾選框 */
   .list label{display:flex;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:14px;font-size:.88rem;cursor:pointer;transition:background .15s}
   .list label:hover{background:var(--c2-soft)}
-  .list input{appearance:none;flex:none;width:19px;height:19px;margin:2px 0 0;border:2.5px solid var(--c1);border-radius:7px;background:#fff;
+  .list input{-webkit-appearance:none;appearance:none;flex:none;width:19px;height:19px;margin:2px 0 0;border:2.5px solid var(--c1);border-radius:7px;background:#fff;
               display:grid;place-content:center;cursor:pointer;transition:transform .15s}
   .list input:checked{background:var(--c2);border-color:var(--c2);transform:rotate(-8deg)}
   .list input:checked::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
@@ -283,6 +283,7 @@ function buildFilters() {
 }
 
 function setAll(on) {
+  if (!state.data) return;
   state.specs = new Set(on ? state.data.specialties : []);
   document.querySelectorAll("#specs input").forEach(i => i.checked = on);
   save(); render();
@@ -345,11 +346,13 @@ function showWeek(file) {
       buildFilters(); render();
     });
 }
-function noData() {
+function noData(err) {
+  console.error(err);
   $("updated").textContent = "尚無資料";
-  $("results").innerHTML = '<div class="empty">' + SLEEPY + '資料尚未產生。GitHub Actions 首次執行完成後即會顯示。</div>';
+  $("results").innerHTML = '<div class="empty">' + SLEEPY + '資料讀取失敗（' + esc(err && err.message || err) + '）。請重新整理頁面；若剛更新，請等 GitHub Actions 執行完成。</div>';
 }
 
+$("results").innerHTML = '<div class="empty">' + SLEEPY + '文章載入中，請稍候…</div>';
 load();
 fetch("archive/index.json", {cache: "no-store"})
   .then(r => r.ok ? r.json() : [])
