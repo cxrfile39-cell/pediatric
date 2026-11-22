@@ -293,6 +293,12 @@ def main():
         "daysBack": DAYS_BACK,
         "specialties": [n for n, _ in SPECIALTIES],
         "totals": counts,
+        "search": {
+            "pediatricFilter": PEDS,
+            "typeFilter": TYPES,
+            "maxPerSpecialty": MAX_PER,
+            "queries": {n: q for n, q in SPECIALTIES},
+        },
         "articles": items,
     }
     payload["week"] = now.strftime("%Y-%m-%d")
