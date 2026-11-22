@@ -106,7 +106,7 @@
   article.card:hover{transform:translateY(-3px) rotate(-.3deg);box-shadow:0 9px 0 var(--c2-soft)}
   article.card::before{content:"";position:absolute;top:-9px;right:26px;width:46px;height:16px;border-radius:4px;
                        background:var(--c2-soft);border:1.5px dashed var(--c2);transform:rotate(4deg)}
-  article.card.Guideline{border-color:var(--c2)}
+  article.card.Guideline,article.card.Meta{border-color:var(--c2)}
   article.card.Guideline::before{background:var(--c1-soft);border-color:var(--c1)}
   .card h3{margin:0 0 6px;font-size:1.04rem;line-height:1.45}
   .card h3 a{text-decoration:none;color:var(--ink)}
@@ -118,6 +118,25 @@
   .tag.type{background:var(--c1);color:#fff;font-weight:700}
   .tag.type.Guideline{background:var(--c2)}
   .tag.type.Review{background:#fff;color:var(--c1);border:2px solid var(--c1)}
+  .tag.type.Meta{background:#fff;color:var(--c2);border:2px solid var(--c2)}
+
+  /* 四大區塊 */
+  .sec{margin-bottom:22px}
+  .sec-h{width:100%;display:flex;align-items:center;gap:10px;text-align:left;padding:12px 18px;border-radius:20px;
+         background:var(--c1);border:2.5px solid var(--c1);color:#fff;font-size:1.05rem;box-shadow:0 5px 0 var(--c2-soft)}
+  .sec:nth-of-type(even) .sec-h{background:var(--c2);border-color:var(--c2)}
+  .sec-h:hover{color:#fff;transform:translateY(-2px);box-shadow:0 7px 0 var(--c2-soft)}
+  .sec-h:active{transform:translateY(2px);box-shadow:0 2px 0 var(--c2-soft)}
+  .sec-h .ico{width:30px;height:30px;flex:none;border-radius:50%;background:#fff;display:grid;place-content:center}
+  .sec-h .ico svg{width:18px;height:18px}
+  .sec-h .zh{font-size:.82rem;opacity:.85;font-weight:500}
+  .sec-h .num{margin-left:auto;background:#fff;color:var(--c1);border-radius:999px;padding:1px 12px;font-size:.9rem}
+  .sec:nth-of-type(even) .sec-h .num{color:var(--c2)}
+  .sec-h .chev{width:22px;height:22px;flex:none;transition:transform .25s}
+  .sec.open .sec-h .chev{transform:rotate(180deg)}
+  .sec-b{padding:16px 4px 0}
+  .more{display:block;margin:2px auto 0;background:#fff}
+  .sec-empty{color:var(--muted);text-align:center;padding:8px 0 4px;font-size:.9rem}
   details{margin-top:10px;font-size:.9rem}
   summary{cursor:pointer;color:var(--c2);font-weight:700;list-style:none;display:inline-flex;align-items:center;gap:6px}
   summary::-webkit-details-marker{display:none}
@@ -244,15 +263,40 @@
 
 <script>
 const SLEEPY = '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 6l12.6 26.4 28.9 3.6-21.2 20 5.4 28.6L50 70.6 24.3 84.6l5.4-28.6-21.2-20 28.9-3.6z" fill="#E4572E" stroke="#12355B" stroke-width="3" stroke-linejoin="round"/><path d="M37 47q4 4 8 0M55 47q4 4 8 0" stroke="#12355B" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="50" cy="58" r="3.5" fill="#12355B"/><text x="74" y="20" font-size="14" fill="#12355B" font-weight="700">z z</text></svg>';
-const TYPES = ["Article", "Review", "Guideline"];
-const TYPE_LABEL = {Article: "Journal Article", Review: "Review", Guideline: "Guideline"};
-const state = {data: null, specs: new Set(), types: new Set(TYPES), q: "", sort: "date"};
+const TYPES = ["Original", "Review", "Meta", "Guideline"];
+const TYPE_LABEL = {Original: "Original", Review: "Review", Meta: "Meta-analysis", Guideline: "Consensus / Guideline"};
+const TYPE_ZH = {Original: "原著論文", Review: "綜論", Meta: "系統性回顧與統合分析", Guideline: "共識與指引"};
+const TYPE_ICON = {
+  Original: '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z" fill="none" stroke="#12355B" stroke-width="2.4" stroke-linejoin="round"/><path d="M9 12h7M9 16h5" stroke="#E4572E" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  Review: '<svg viewBox="0 0 24 24"><path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z" fill="none" stroke="#12355B" stroke-width="2.2" stroke-linejoin="round"/></svg>',
+  Meta: '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" stroke="#E4572E" stroke-width="2.6" stroke-linecap="round"/></svg>',
+  Guideline: '<svg viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3 9-7 11-4-2-7-6-7-11V5z" fill="none" stroke="#E4572E" stroke-width="2.4" stroke-linejoin="round"/><path d="M8.5 12l2.5 2.5 4.5-5" stroke="#12355B" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>'};
+const CHEV = '<svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const PREVIEW = 3;   // 每區預設顯示篇數
+const state = {data: null, specs: new Set(), types: new Set(TYPES), q: "", sort: "date", open: new Set()};
+
+// 依 PubMed publication type（及標題關鍵字）分四類；舊存檔也適用
+function classify(a) {
+  const pt = (a.pubTypes || []).map(p => p.toLowerCase());
+  const t = (a.title || "").toLowerCase();
+  if (pt.some(p => p.includes("guideline") || p.includes("consensus")) ||
+      /\b(guidelines?|consensus statement|consensus recommendations?|expert consensus|position statement|position paper|clinical practice recommendations?)\b/.test(t))
+    return "Guideline";
+  if (pt.includes("meta-analysis") || pt.includes("systematic review") || pt.includes("network meta-analysis") ||
+      /meta-analys|systematic review|umbrella review/.test(t))
+    return "Meta";
+  if (pt.includes("review") || /\b(narrative|scoping|literature|state-of-the-art) review\b/.test(t))
+    return "Review";
+  return "Original";
+}
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 function load() {
   try { const s = JSON.parse(localStorage.getItem("pedslit") || "null");
-        if (s) { state.savedSpecs = s.specs; state.types = new Set(s.types); } } catch (e) {}
+        if (s) { state.savedSpecs = s.specs;
+                 const ty = (s.types || []).filter(t => TYPES.includes(t));
+                 if (ty.length) state.types = new Set(ty); } } catch (e) {}
 }
 function save() {
   try { localStorage.setItem("pedslit", JSON.stringify({specs: [...state.specs], types: [...state.types]})); } catch (e) {}
@@ -260,6 +304,7 @@ function save() {
 
 function buildFilters() {
   const d = state.data;
+  d.articles.forEach(a => a.cat = classify(a));
   const perSpec = {};
   d.articles.forEach(a => a.specialties.forEach(s => perSpec[s] = (perSpec[s] || 0) + 1));
   const known = new Set(d.specialties);
@@ -289,10 +334,27 @@ function setAll(on) {
   save(); render();
 }
 
+function card(a) {
+  return `
+    <article class="card ${a.cat}">
+      <h3><a href="https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/" target="_blank" rel="noopener">${esc(a.title)}</a></h3>
+      <div class="sub"><i>${esc(a.journal)}</i> · ${esc(a.date)} · ${esc(a.authors.join(", "))}</div>
+      <div class="tags">
+        <span class="tag type ${a.cat}">${TYPE_LABEL[a.cat]}</span>
+        ${a.specialties.map(s => `<span class="tag">${esc(s)}</span>`).join("")}
+      </div>
+      ${a.abstract ? `<details><summary>摘要 Abstract</summary><p>${esc(a.abstract)}</p></details>` : ""}
+      <div class="links">
+        <a href="https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/" target="_blank" rel="noopener">PubMed ${a.pmid}</a>
+        ${a.doi ? `<a href="https://doi.org/${esc(a.doi)}" target="_blank" rel="noopener">全文 DOI</a>` : ""}
+      </div>
+    </article>`;
+}
+
 function render() {
   const q = state.q.trim().toLowerCase();
   let list = state.data.articles.filter(a =>
-    state.types.has(a.type) &&
+    state.types.has(a.cat) &&
     a.specialties.some(s => state.specs.has(s)) &&
     (!q || [a.title, a.journal, a.abstract, a.authors.join(" ")].join(" ").toLowerCase().includes(q)));
   if (state.sort === "journal") list = [...list].sort((a, b) => a.journal.localeCompare(b.journal) || b.sortDate.localeCompare(a.sortDate));
@@ -301,21 +363,34 @@ function render() {
     $("results").innerHTML = `<div class="empty">${SLEEPY}${state.specs.size ? "沒有符合條件的文章" : "請至少勾選一個次專科"}</div>`;
     return;
   }
-  $("results").innerHTML = list.map(a => `
-    <article class="card ${a.type}">
-      <h3><a href="https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/" target="_blank" rel="noopener">${esc(a.title)}</a></h3>
-      <div class="sub"><i>${esc(a.journal)}</i> · ${esc(a.date)} · ${esc(a.authors.join(", "))}</div>
-      <div class="tags">
-        <span class="tag type ${a.type}">${TYPE_LABEL[a.type]}</span>
-        ${a.specialties.map(s => `<span class="tag">${esc(s)}</span>`).join("")}
+  $("results").innerHTML = TYPES.filter(t => state.types.has(t)).map(t => {
+    const items = list.filter(a => a.cat === t);
+    const open = state.open.has(t);
+    const shown = open ? items : items.slice(0, PREVIEW);
+    const rest = items.length - shown.length;
+    return `
+    <section class="sec ${open ? "open" : ""}">
+      <button class="sec-h" data-sec="${t}" aria-expanded="${open}">
+        <span class="ico">${TYPE_ICON[t]}</span>
+        <span>${TYPE_LABEL[t]}<br><span class="zh">${TYPE_ZH[t]}</span></span>
+        <span class="num">${items.length} 篇</span>${CHEV}
+      </button>
+      <div class="sec-b">
+        ${items.length ? shown.map(card).join("") : '<div class="sec-empty">本區沒有符合條件的文章</div>'}
+        ${rest > 0 ? `<button class="more" data-sec="${t}">展開其餘 ${rest} 篇 ▾</button>`
+          : (open && items.length > PREVIEW ? `<button class="more" data-sec="${t}">收合 ▴</button>` : "")}
       </div>
-      ${a.abstract ? `<details><summary>摘要 Abstract</summary><p>${esc(a.abstract)}</p></details>` : ""}
-      <div class="links">
-        <a href="https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/" target="_blank" rel="noopener">PubMed ${a.pmid}</a>
-        ${a.doi ? `<a href="https://doi.org/${esc(a.doi)}" target="_blank" rel="noopener">全文 DOI</a>` : ""}
-      </div>
-    </article>`).join("");
+    </section>`;
+  }).join("");
 }
+
+$("results").addEventListener("click", e => {
+  const b = e.target.closest("[data-sec]"); if (!b) return;
+  const t = b.dataset.sec, sec = b.closest(".sec");
+  state.open.has(t) ? state.open.delete(t) : state.open.add(t);
+  render();
+  if (!state.open.has(t)) { const el = document.querySelector(`.sec-h[data-sec="${t}"]`); el && el.scrollIntoView({block: "nearest"}); }
+});
 
 // 下次更新：下一個週一 00:00 UTC（= 台灣時間週一 08:00）
 function nextUpdate() {
