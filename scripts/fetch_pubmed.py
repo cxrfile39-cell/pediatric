@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch the latest pediatric literature from PubMed, grouped by subspecialty.
 
-Writes site/data.json (used by the web page) and data/archive/YYYY-MM-DD.json.
+Writes site/data.json (latest week), site/archive/YYYY-MM-DD.json and site/archive/index.json.
 Standard library only. Optional env vars: NCBI_API_KEY, NCBI_EMAIL, DAYS_BACK, MAX_PER_SPECIALTY.
 """
 import json
@@ -248,6 +248,19 @@ def fetch_details(pmids):
     return result
 
 
+def write_index(arch):
+    """Rebuild site/archive/index.json: list of weeks, newest first."""
+    weeks = []
+    for f in sorted(arch.glob("????-??-??.json"), reverse=True):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        weeks.append({"week": f.stem, "from": d.get("from", ""), "count": len(d.get("articles", [])),
+                      "file": f"archive/{f.name}"})
+    (arch / "index.json").write_text(json.dumps(weeks, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def main():
     articles = {}
     counts = {}
@@ -272,11 +285,15 @@ def main():
         "totals": counts,
         "articles": items,
     }
-    (ROOT / "site").mkdir(exist_ok=True)
-    (ROOT / "site" / "data.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-    arch = ROOT / "data" / "archive"
+    payload["week"] = now.strftime("%Y-%m-%d")
+    payload["from"] = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%d")
+    site = ROOT / "site"
+    arch = site / "archive"
     arch.mkdir(parents=True, exist_ok=True)
-    (arch / f"{now:%Y-%m-%d}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+    dumped = json.dumps(payload, ensure_ascii=False)
+    (site / "data.json").write_text(dumped, encoding="utf-8")
+    (arch / f"{payload['week']}.json").write_text(dumped, encoding="utf-8")
+    write_index(arch)
     print(f"Saved {len(items)} unique articles.")
     if not items:
         print("Warning: no articles found.", file=sys.stderr)
