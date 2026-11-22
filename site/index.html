@@ -92,6 +92,10 @@
   .search svg{position:absolute;left:14px;top:50%;width:20px;height:20px;transform:translateY(-50%)}
   .search input{width:100%;padding:11px 14px 11px 44px;border:2.5px solid var(--c1);border-radius:999px;font:inherit;background:#fff}
   .search input:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 4px var(--c2-soft)}
+  #week{border-color:var(--c2);color:var(--c2);font-weight:700}
+  .past{display:none;margin:0 0 12px;padding:8px 14px;border-radius:16px;background:var(--c2-soft);color:var(--c1);font-size:.88rem}
+  .past.on{display:block}
+  .past a{color:var(--c2);font-weight:700;cursor:pointer}
   select{font:inherit;padding:9px 14px;border:2.5px solid var(--c1);border-radius:999px;background:#fff;color:var(--c1)}
   .count{color:var(--muted);font-size:.92rem;margin:0 0 12px 6px}
   .count b{color:#fff;background:var(--c2);border-radius:999px;padding:0 9px}
@@ -216,11 +220,13 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.8"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3.2" stroke-linecap="round"/></svg>
         <input type="search" id="q" placeholder="搜尋標題、期刊、作者、摘要…" aria-label="搜尋">
       </label>
+      <select id="week" aria-label="週次"><option value="data.json">本週</option></select>
       <select id="sort">
         <option value="date">依出版日期</option>
         <option value="journal">依期刊名稱</option>
       </select>
     </div>
+    <div class="past" id="past"></div>
     <div class="count" id="count"></div>
     <div id="results"></div>
   </section>
@@ -257,16 +263,18 @@ function buildFilters() {
   const perSpec = {};
   d.articles.forEach(a => a.specialties.forEach(s => perSpec[s] = (perSpec[s] || 0) + 1));
   const known = new Set(d.specialties);
-  state.specs = new Set(state.savedSpecs ? state.savedSpecs.filter(s => known.has(s)) : d.specialties);
+  if (!state.inited) state.specs = new Set(state.savedSpecs ? state.savedSpecs.filter(s => known.has(s)) : d.specialties);
   $("specs").innerHTML = d.specialties.map((s, i) => `
     <label><input type="checkbox" data-spec="${esc(s)}" ${state.specs.has(s) ? "checked" : ""}>
       <span>${esc(s)}</span><span class="n">${perSpec[s] || 0}</span></label>`).join("");
+  if (state.inited) return;
+  state.inited = true;
+  $("types").innerHTML = TYPES.map(t => `
+    <label class="${state.types.has(t) ? "on" : ""}"><input type="checkbox" data-type="${t}" ${state.types.has(t) ? "checked" : ""}>${TYPE_LABEL[t]}</label>`).join("");
   $("specs").addEventListener("change", e => {
     const s = e.target.dataset.spec; if (!s) return;
     e.target.checked ? state.specs.add(s) : state.specs.delete(s); save(); render();
   });
-  $("types").innerHTML = TYPES.map(t => `
-    <label class="${state.types.has(t) ? "on" : ""}"><input type="checkbox" data-type="${t}" ${state.types.has(t) ? "checked" : ""}>${TYPE_LABEL[t]}</label>`).join("");
   $("types").addEventListener("change", e => {
     const t = e.target.dataset.type; if (!t) return;
     e.target.checked ? state.types.add(t) : state.types.delete(t);
@@ -321,19 +329,40 @@ function nextUpdate() {
 }
 $("next").textContent = nextUpdate();
 
+const md = d => d ? d.slice(5).replace("-", "/") : "";
+function showWeek(file) {
+  return fetch(file, {cache: "no-store"})
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => {
+      state.data = d;
+      $("updated").textContent = d.updated;
+      $("days").textContent = d.daysBack;
+      const latest = $("week").options[0].value;
+      const isPast = $("week").value !== latest && $("week").selectedIndex > 0;
+      $("past").className = "past" + (isPast ? " on" : "");
+      $("past").innerHTML = isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.week)}　<a id="back">回到本週 →</a>` : "";
+      if (isPast) $("back").onclick = () => { $("week").selectedIndex = 0; showWeek($("week").value); };
+      buildFilters(); render();
+    });
+}
+function noData() {
+  $("updated").textContent = "尚無資料";
+  $("results").innerHTML = '<div class="empty">' + SLEEPY + '資料尚未產生。GitHub Actions 首次執行完成後即會顯示。</div>';
+}
+
 load();
-fetch("data.json", {cache: "no-store"})
-  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d => {
-    state.data = d;
-    $("updated").textContent = d.updated;
-    $("days").textContent = d.daysBack;
-    buildFilters(); render();
+fetch("archive/index.json", {cache: "no-store"})
+  .then(r => r.ok ? r.json() : [])
+  .catch(() => [])
+  .then(weeks => {
+    if (weeks.length) {
+      $("week").innerHTML = weeks.map((w, i) =>
+        `<option value="${esc(w.file)}">${i ? "" : "本週 · "}${md(w.from)}–${md(w.week)}（${w.count} 篇）</option>`).join("");
+    }
+    return showWeek($("week").value);
   })
-  .catch(() => {
-    $("updated").textContent = "尚無資料";
-    $("results").innerHTML = '<div class="empty">' + SLEEPY + '資料尚未產生。GitHub Actions 首次執行完成後即會顯示。</div>';
-  });
+  .catch(noData);
+$("week").addEventListener("change", e => { window.scrollTo({top: 0, behavior: "smooth"}); showWeek(e.target.value).catch(noData); });
 $("all").onclick = () => setAll(true);
 $("none").onclick = () => setAll(false);
 $("q").addEventListener("input", e => { state.q = e.target.value; if (state.data) render(); });
