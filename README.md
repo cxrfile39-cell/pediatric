@@ -28,8 +28,9 @@
 .github/workflows/update.yml   排程、抓資料、部署
 scripts/fetch_pubmed.py        PubMed E-utilities 抓取（僅用 Python 標準函式庫）
 site/index.html                網頁（全選／全不選、類型篩選、搜尋、摘要）
-site/data.json                 每次執行自動產生
-data/archive/YYYY-MM-DD.json   每週歷史存檔
+site/data.json                 最新一週資料（自動產生）
+site/archive/YYYY-MM-DD.json   每週歷史存檔，網頁「週次」選單可切換
+site/archive/index.json        週次清單（自動產生）
 ```
 
 資料來源：NCBI PubMed。僅供學術參考，臨床決策請以原文為準。
