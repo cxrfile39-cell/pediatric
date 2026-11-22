@@ -6,6 +6,7 @@ Standard library only. Optional env vars: NCBI_API_KEY, NCBI_EMAIL, DAYS_BACK, M
 """
 import json
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -184,13 +185,22 @@ def pub_date(art):
     return "", ""
 
 
-def classify(pts):
+GUIDE_RE = re.compile(r"\b(guidelines?|consensus statement|consensus recommendations?|expert consensus|"
+                      r"position statement|position paper|clinical practice recommendations?)\b", re.I)
+
+
+def classify(pts, title=""):
+    """Original / Review / Meta / Guideline (same rules as the web page)."""
     s = {p.lower() for p in pts}
-    if s & {"guideline", "practice guideline", "consensus development conference"}:
+    t = title.lower()
+    if any("guideline" in p or "consensus" in p for p in s) or GUIDE_RE.search(t):
         return "Guideline"
-    if s & {"review", "systematic review", "meta-analysis"}:
+    if s & {"meta-analysis", "systematic review", "network meta-analysis"} or re.search(
+            r"meta-analys|systematic review|umbrella review", t):
+        return "Meta"
+    if "review" in s or re.search(r"\b(narrative|scoping|literature|state-of-the-art) review\b", t):
         return "Review"
-    return "Article"
+    return "Original"
 
 
 def parse_articles(xml_bytes):
@@ -232,7 +242,7 @@ def parse_articles(xml_bytes):
             "sortDate": sort_date,
             "authors": authors[:6] + (["et al."] if len(authors) > 6 else []),
             "abstract": "\n".join(abs_parts),
-            "type": classify(pts),
+            "type": classify(pts, text(art.find("ArticleTitle"))),
             "pubTypes": pts,
             "doi": doi,
             "specialties": [],
