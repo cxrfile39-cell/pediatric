@@ -141,7 +141,7 @@
   summary{cursor:pointer;color:var(--c2);font-weight:700;list-style:none;display:inline-flex;align-items:center;gap:6px}
   summary::-webkit-details-marker{display:none}
   summary::before{content:"+";display:grid;place-content:center;width:20px;height:20px;border-radius:50%;background:var(--c2);color:#fff;font-size:.9rem;line-height:1}
-  details[open] summary::before{content:"–"}
+  details[open] > summary::before{content:"–"}
   details p{white-space:pre-line;margin:.6rem 0 0;padding:12px 14px;background:var(--bg);border-radius:14px;color:#2F3A47}
   .links{margin-top:10px;font-size:.84rem;display:flex;gap:10px;flex-wrap:wrap}
   .links a{text-decoration:none;border:2px solid var(--c1);border-radius:999px;padding:1px 11px;font-weight:700}
@@ -150,6 +150,26 @@
   .empty svg{width:110px;height:110px;display:block;margin:0 auto 8px}
 
   /* ---------- Footer：積木 ---------- */
+  /* 搜尋邏輯 */
+  .logic{background:#fff;border:2.5px dashed var(--c1);border-radius:24px;padding:20px 22px;margin:10px auto 30px;font-size:.9rem}
+  .logic h2{margin:0 0 10px;color:var(--c1);font-size:1.1rem;display:flex;align-items:center;gap:8px}
+  .logic h2 svg{width:22px;height:22px}
+  .logic ol{margin:0;padding-left:1.3em}
+  .logic li{margin:.35em 0}
+  .logic li::marker{color:var(--c2);font-weight:700}
+  .logic b{color:var(--c1)}
+  .logic table{border-collapse:collapse;margin:6px 0;font-size:.85rem}
+  .logic td{padding:3px 10px 3px 0;vertical-align:top}
+  .logic td:first-child{white-space:nowrap;color:var(--c2);font-weight:700}
+  @media (max-width:600px){.logic tr,.logic td{display:block}.logic td{padding:0}.logic td:first-child{margin-top:8px}}
+  .logic details{margin-top:10px}
+  .logic details details{margin:6px 0 0 6px}
+  .logic summary{color:var(--c1)}
+  .logic summary::before{background:var(--c1)}
+  .logic details details summary{font-weight:500;font-size:.86rem}
+  .logic details details summary::before{width:16px;height:16px;font-size:.75rem}
+  .logic code{display:block;white-space:pre-wrap;word-break:break-word;background:var(--bg);border-radius:12px;padding:10px 12px;margin-top:6px;
+              font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.76rem;color:#2F3A47}
   footer{position:relative;background:var(--c1);color:#fff;text-align:center;padding:64px 20px 26px;font-size:.9rem;margin-top:20px}
   footer .wave{top:-1px;bottom:auto;transform:rotate(180deg)}
   .blocks{display:flex;justify-content:center;gap:6px;margin-bottom:12px}
@@ -250,6 +270,31 @@
     <div id="results"></div>
   </section>
 </main>
+
+<section class="wrap" style="padding:0 20px">
+  <div class="logic" id="logic">
+    <h2><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.6"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3" stroke-linecap="round"/></svg>搜尋邏輯說明</h2>
+    <ol>
+      <li><b>資料來源</b>：NCBI PubMed（E-utilities API），每週一 08:00（台灣時間）自動執行。</li>
+      <li><b>時間範圍</b>：PubMed 收錄日期（Entrez date）在執行前 <span class="L-days">7</span> 天內的文章。</li>
+      <li><b>兒科條件</b>：MeSH 為 Child、Infant、Adolescent、Pediatrics，或標題／摘要含 pediatric、paediatric、child、infant、neonat、newborn、adolescen 等字。</li>
+      <li><b>次專科條件</b>：每個次專科各有一組 MeSH 主題詞與標題／摘要關鍵字（見下方完整搜尋式），三者以 AND 結合：<i>次專科</i> AND <i>兒科</i> AND <i>文章類型</i>。</li>
+      <li><b>收錄類型</b>：Journal Article、Review、Systematic Review、Meta-Analysis、Guideline、Practice Guideline、Consensus Development Conference。</li>
+      <li><b>排除</b>：Comment、Editorial、Letter、Erratum、Case Reports、Retracted Publication、Preprint；並限定<b>有摘要</b>、<b>英文</b>。</li>
+      <li><b>數量</b>：每個次專科依出版日期取最新 <span class="L-max">40</span> 篇；同一篇符合多個次專科時只列一次，並標上所有相關次專科。</li>
+      <li><b>四區分類</b>（依序判斷，符合即歸類）：
+        <table>
+          <tr><td>Consensus / Guideline</td><td>PubMed 類型含 Guideline 或 Consensus；或標題含 guideline、consensus statement、expert consensus、position statement 等</td></tr>
+          <tr><td>Meta-analysis</td><td>類型為 Meta-Analysis、Systematic Review；或標題含 meta-analysis、systematic review、umbrella review</td></tr>
+          <tr><td>Review</td><td>類型為 Review；或標題含 narrative / scoping / literature review</td></tr>
+          <tr><td>Original</td><td>其餘所有文章</td></tr>
+        </table>
+      </li>
+      <li><b>限制</b>：關鍵字搜尋可能收錄部分非兒科為主的研究，或漏收未使用上述字詞的文章；新收錄文章常尚未完成 MeSH 標引，因此同時使用標題／摘要關鍵字。</li>
+    </ol>
+    <details id="queries"><summary>查看完整 PubMed 搜尋式</summary><div id="qlist"><p>資料更新後即會顯示。</p></div></details>
+  </div>
+</section>
 
 <footer>
   <svg class="wave" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true">
@@ -430,9 +475,19 @@ function showWeek(file) {
       $("past").className = "past" + (isPast ? " on" : "");
       $("past").innerHTML = isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.week)}　<a id="back">回到本週 →</a>` : "";
       if (isPast) $("back").onclick = () => { $("week").selectedIndex = 0; showWeek($("week").value); };
-      try { buildFilters(); render(); }
+      try { buildFilters(); render(); showLogic(d); }
       catch (e) { throw new Error("顯示時發生錯誤：" + (e && e.message)); }
     });
+}
+function showLogic(d) {
+  document.querySelectorAll(".L-days").forEach(e => e.textContent = d.daysBack);
+  const q = d.search; if (!q) return;
+  document.querySelectorAll(".L-max").forEach(e => e.textContent = q.maxPerSpecialty);
+  $("qlist").innerHTML =
+    `<details><summary>兒科條件</summary><code>${esc(q.pediatricFilter)}</code></details>
+     <details><summary>文章類型條件</summary><code>${esc(q.typeFilter)}</code></details>` +
+    Object.entries(q.queries).map(([n, s]) =>
+      `<details><summary>${esc(n)}</summary><code>${esc(s)}</code></details>`).join("");
 }
 function noData(err) {
   console.error(err);
