@@ -406,9 +406,21 @@ function nextUpdate() {
 $("next").textContent = nextUpdate();
 
 const md = d => d ? d.slice(5).replace("-", "/") : "";
+// 讀 JSON：加時間參數避開瀏覽器／CDN 快取，並回報清楚的錯誤
+function getJSON(file) {
+  const url = file + (file.includes("?") ? "&" : "?") + "t=" + Date.now();
+  return fetch(url, {cache: "no-store"}).then(r => r.text().then(txt => {
+    if (!r.ok) throw new Error(`${file}：HTTP ${r.status}`);
+    try { return JSON.parse(txt); }
+    catch (e) { throw new Error(`${file} 不是有效資料（HTTP ${r.status}，長度 ${txt.length}，開頭「${txt.slice(0, 40)}」）`); }
+  }));
+}
 function showWeek(file) {
-  return fetch(file, {cache: "no-store"})
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  return getJSON(file)
+    .catch(err => {                       // 存檔讀不到就退回最新一週
+      if (file === "data.json") throw err;
+      console.warn(err); return getJSON("data.json");
+    })
     .then(d => {
       state.data = d;
       $("updated").textContent = d.updated;
@@ -418,7 +430,8 @@ function showWeek(file) {
       $("past").className = "past" + (isPast ? " on" : "");
       $("past").innerHTML = isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.week)}　<a id="back">回到本週 →</a>` : "";
       if (isPast) $("back").onclick = () => { $("week").selectedIndex = 0; showWeek($("week").value); };
-      buildFilters(); render();
+      try { buildFilters(); render(); }
+      catch (e) { throw new Error("顯示時發生錯誤：" + (e && e.message)); }
     });
 }
 function noData(err) {
@@ -429,9 +442,9 @@ function noData(err) {
 
 $("results").innerHTML = '<div class="empty">' + SLEEPY + '文章載入中，請稍候…</div>';
 load();
-fetch("archive/index.json", {cache: "no-store"})
-  .then(r => r.ok ? r.json() : [])
-  .catch(() => [])
+getJSON("archive/index.json")
+  .then(w => Array.isArray(w) ? w : [])
+  .catch(e => { console.warn(e); return []; })
   .then(weeks => {
     if (weeks.length) {
       $("week").innerHTML = weeks.map((w, i) =>
