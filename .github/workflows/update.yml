@@ -27,7 +27,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -41,10 +41,8 @@ jobs:
           NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           RUN_EVENT: ${{ github.event_name }}
-          MAX_PER_SPECIALTY: "80"
+          MAX_PER_SPECIALTY: "0"     # 0 = 不限篇數
           POOL_PER_SPECIALTY: "1000"
-          BACKFILL_WEEKS: "104"      # 回補 2 年
-          BACKFILL_MINUTES: "240"    # 單次回補上限，未完成下次接續
         run: python scripts/fetch_pubmed.py
 
       - name: Commit data (keeps the repo active so the weekly schedule stays on)
