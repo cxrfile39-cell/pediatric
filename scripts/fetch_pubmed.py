@@ -2,7 +2,11 @@
 """Fetch the latest pediatric literature from PubMed, grouped by subspecialty.
 
 Writes site/data.json (latest week), site/archive/YYYY-MM-DD.json and site/archive/index.json.
-Standard library only. Optional env vars: NCBI_API_KEY, NCBI_EMAIL, DAYS_BACK, MAX_PER_SPECIALTY.
+Selection: for each subspecialty, all matches of the past DAYS_BACK days (up to POOL_PER_SPECIALTY)
+are ranked by journal impact (OpenAlex 2-year mean citedness, an open IF-equivalent metric),
+and the top MAX_PER_SPECIALTY are kept.
+Standard library only. Optional env vars: NCBI_API_KEY, NCBI_EMAIL, OPENALEX_API_KEY,
+DAYS_BACK, MAX_PER_SPECIALTY, POOL_PER_SPECIALTY.
 """
 import json
 import os
@@ -20,7 +24,10 @@ EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
 EMAIL = os.environ.get("NCBI_EMAIL", "").strip()
 DAYS_BACK = int(os.environ.get("DAYS_BACK", "7"))
-MAX_PER = int(os.environ.get("MAX_PER_SPECIALTY", "40"))
+MAX_PER = int(os.environ.get("MAX_PER_SPECIALTY", "80"))
+POOL = int(os.environ.get("POOL_PER_SPECIALTY", "1000"))
+OPENALEX = "https://api.openalex.org/sources"
+OPENALEX_KEY = os.environ.get("OPENALEX_API_KEY", "").strip()
 DELAY = 0.12 if API_KEY else 0.4
 
 PEDS = ('("Child"[Mesh] OR "Infant"[Mesh] OR "Adolescent"[Mesh] OR "Pediatrics"[Mesh] '
@@ -151,10 +158,60 @@ def eutils(endpoint, params, retries=4):
 
 
 def search(term):
-    raw = eutils("esearch.fcgi", {"term": term, "retmode": "json", "retmax": MAX_PER,
+    raw = eutils("esearch.fcgi", {"term": term, "retmode": "json", "retmax": POOL,
                                   "sort": "pub_date", "datetype": "edat", "reldate": DAYS_BACK})
     res = json.loads(raw)["esearchresult"]
     return res.get("idlist", []), int(res.get("count", 0))
+
+
+def summaries(pmids):
+    """pmid -> {issns, journal, sortpubdate} via esummary (light-weight, for ranking)."""
+    out = {}
+    for i in range(0, len(pmids), 200):
+        chunk = pmids[i:i + 200]
+        res = json.loads(eutils("esummary.fcgi", {"id": ",".join(chunk), "retmode": "json"})).get("result", {})
+        for uid in res.get("uids", []):
+            r = res.get(uid, {})
+            out[uid] = {
+                "issns": [x for x in (r.get("issn", ""), r.get("essn", "")) if x],
+                "journal": r.get("fulljournalname", "") or r.get("source", ""),
+                "sortpubdate": r.get("sortpubdate", ""),
+            }
+    return out
+
+
+def journal_impact(issns):
+    """ISSN -> OpenAlex 2-year mean citedness (open IF-equivalent). Missing journals are absent."""
+    result = {}
+    issns = sorted(set(issns))
+    for i in range(0, len(issns), 50):
+        chunk = issns[i:i + 50]
+        params = {"filter": "issn:" + "|".join(chunk), "per_page": 200,
+                  "select": "issn,display_name,summary_stats"}
+        if EMAIL:
+            params["mailto"] = EMAIL
+        if OPENALEX_KEY:
+            params["api_key"] = OPENALEX_KEY
+        url = OPENALEX + "?" + urllib.parse.urlencode(params)
+        for attempt in range(4):
+            try:
+                time.sleep(0.15)
+                req = urllib.request.Request(url, headers={"User-Agent": "peds-lit-weekly/1.0"})
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    data = json.loads(r.read())
+                break
+            except Exception as e:  # noqa: BLE001
+                print(f"  ! OpenAlex failed ({e}); retry", file=sys.stderr)
+                time.sleep(2 ** attempt * 2)
+        else:
+            continue
+        for src in data.get("results", []):
+            v = (src.get("summary_stats") or {}).get("2yr_mean_citedness")
+            if v is None:
+                continue
+            for x in src.get("issn") or []:
+                result[x] = max(result.get(x, 0), round(float(v), 2))
+    return result
 
 
 def text(el):
@@ -263,48 +320,97 @@ def write_index(arch):
     weeks = []
     for f in sorted(arch.glob("????-??-??.json"), reverse=True):
         try:
+            if datetime.strptime(f.stem, "%Y-%m-%d").weekday() != 0:
+                continue          # 只列週一的週次（舊版以執行日命名的檔案略過）
+        except ValueError:
+            continue
+        try:
             d = json.loads(f.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        weeks.append({"week": f.stem, "from": d.get("from", ""), "count": len(d.get("articles", [])),
+        weeks.append({"week": f.stem, "from": d.get("from", ""), "to": d.get("to", f.stem), "count": len(d.get("articles", [])),
                       "file": f"archive/{f.name}"})
     (arch / "index.json").write_text(json.dumps(weeks, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-def main():
-    articles = {}
-    counts = {}
-    for name, q in SPECIALTIES:
-        term = f"{q} AND {PEDS} AND {TYPES}"
-        ids, total = search(term)
-        print(f"{name}: {len(ids)} / {total}")
-        counts[name] = total
-        need = [i for i in ids if i not in articles]
-        if need:
-            articles.update(fetch_details(need))
-        for i in ids:
-            if i in articles and name not in articles[i]["specialties"]:
-                articles[i]["specialties"].append(name)
+TPE = timezone(timedelta(hours=8))
 
-    items = sorted(articles.values(), key=lambda a: (a["sortDate"], a["pmid"]), reverse=True)
-    now = datetime.now(timezone(timedelta(hours=8)))
+
+def search_settings():
+    return {
+        "pediatricFilter": PEDS,
+        "typeFilter": TYPES,
+        "maxPerSpecialty": MAX_PER,
+        "poolPerSpecialty": POOL,
+        "ranking": "OpenAlex 2yr_mean_citedness",
+        "queries": {n: q for n, q in SPECIALTIES},
+    }
+
+
+def week_key(now):
+    """本週週一（台灣時間）作為週次名稱。"""
+    return (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+
+
+def main():
+    now = datetime.now(TPE)
+    arch = ROOT / "site" / "archive"
+    event = os.environ.get("RUN_EVENT", "")
+    # 上傳／修改檔案（push）觸發時：本週已有資料且搜尋條件沒變 → 不重抓，只重新發布
+    #                               搜尋條件（搜尋式、篇數上限）有改 → 自動重抓本週
+    cur = arch / f"{week_key(now)}.json"
+    if event == "push" and cur.exists():
+        try:
+            old = json.loads(cur.read_text(encoding="utf-8")).get("search")
+        except (OSError, ValueError):
+            old = None
+        if old == search_settings():
+            print(f"Week {week_key(now)} already archived with same settings; push run only redeploys.")
+            write_index(arch)
+            return
+        print("Search settings changed; refetching this week.")
+    # 1) 每科抓近 DAYS_BACK 天所有符合文章（候選池）
+    pools, counts = {}, {}
+    for name, q in SPECIALTIES:
+        ids, total = search(f"{q} AND {PEDS} AND {TYPES}")
+        pools[name], counts[name] = ids, total
+        print(f"{name}: pool {len(ids)} / {total}")
+    all_ids = sorted({i for ids in pools.values() for i in ids})
+
+    # 2) 取期刊 ISSN → OpenAlex 期刊影響力（IF 等價指標）
+    summ = summaries(all_ids)
+    impact = journal_impact([x for v in summ.values() for x in v["issns"]])
+    def score(pmid):
+        v = summ.get(pmid, {})
+        return max([impact.get(x, 0) for x in v.get("issns", [])] or [0])
+    print(f"Journals with impact data: {len(impact)} ISSNs; candidates {len(all_ids)}")
+
+    # 3) 每科依影響力排序（同分看日期），取前 MAX_PER 篇
+    chosen = {}
+    for name, ids in pools.items():
+        ranked = sorted(ids, key=lambda i: (score(i), summ.get(i, {}).get("sortpubdate", ""), i), reverse=True)
+        for i in ranked[:MAX_PER]:
+            chosen.setdefault(i, []).append(name)
+
+    # 4) 只對入選文章抓完整資料
+    articles = fetch_details(list(chosen))
+    for i, a in articles.items():
+        a["specialties"] = chosen.get(i, [])
+        a["if"] = score(i)
+
+    items = sorted(articles.values(), key=lambda a: (a["if"], a["sortDate"], a["pmid"]), reverse=True)
     payload = {
         "updated": now.strftime("%Y-%m-%d %H:%M (UTC+8)"),
         "daysBack": DAYS_BACK,
         "specialties": [n for n, _ in SPECIALTIES],
         "totals": counts,
-        "search": {
-            "pediatricFilter": PEDS,
-            "typeFilter": TYPES,
-            "maxPerSpecialty": MAX_PER,
-            "queries": {n: q for n, q in SPECIALTIES},
-        },
+        "search": search_settings(),
         "articles": items,
     }
-    payload["week"] = now.strftime("%Y-%m-%d")
+    payload["week"] = week_key(now)
+    payload["to"] = now.strftime("%Y-%m-%d")
     payload["from"] = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%d")
     site = ROOT / "site"
-    arch = site / "archive"
     arch.mkdir(parents=True, exist_ok=True)
     dumped = json.dumps(payload, ensure_ascii=False)
     (site / "data.json").write_text(dumped, encoding="utf-8")
