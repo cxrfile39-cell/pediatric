@@ -473,7 +473,7 @@ function showWeek(file) {
       const latest = $("week").options[0].value;
       const isPast = $("week").value !== latest && $("week").selectedIndex > 0;
       $("past").className = "past" + (isPast ? " on" : "");
-      $("past").innerHTML = isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.week)}　<a id="back">回到本週 →</a>` : "";
+      $("past").innerHTML = isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.to || d.week)}　<a id="back">回到本週 →</a>` : "";
       if (isPast) $("back").onclick = () => { $("week").selectedIndex = 0; showWeek($("week").value); };
       try { buildFilters(); render(); showLogic(d); }
       catch (e) { throw new Error("顯示時發生錯誤：" + (e && e.message)); }
@@ -503,7 +503,7 @@ getJSON("archive/index.json")
   .then(weeks => {
     if (weeks.length) {
       $("week").innerHTML = weeks.map((w, i) =>
-        `<option value="${esc(w.file)}">${i ? "" : "本週 · "}${md(w.from)}–${md(w.week)}（${w.count} 篇）</option>`).join("");
+        `<option value="${esc(w.file)}">${i ? "" : "本週 · "}${md(w.from)}–${md(w.to || w.week)}（${w.count} 篇）</option>`).join("");
     }
     return showWeek($("week").value);
   })
