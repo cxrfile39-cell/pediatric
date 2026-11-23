@@ -295,12 +295,12 @@
     <ol>
       <li><b>資料來源</b>：NCBI PubMed（E-utilities API），每週一 08:00（台灣時間）自動執行。</li>
       <li><b>時間範圍</b>：以 PubMed 收錄日期（Entrez date）為準，可選 <b>7 天</b>（每週一更新上週一至週日，並可切換過去週次）、<b>30 天</b>（最近 4 週）、<b>1 年</b>（最近 52 週）、<b>2 年</b>（最近 104 週）。</li>
-      <li><b>長區間計算方式</b>：系統每週保存各次專科依影響力排序的前 80 篇，30 天／1 年／2 年由這些每週結果合併後再取前 80 篇，結果與直接在整個區間內依影響力篩選相同。過去 2 年的資料於首次執行時自動回補，回補完成前長區間會標示已累積的週數。</li>
+      <li><b>長區間計算方式</b>：系統每週保存各次專科的全部指引及依影響力排序的前 80 篇，30 天／1 年／2 年由這些每週結果合併：指引全部保留，其他文章再取前 80 篇，結果與直接在整個區間內依影響力篩選相同。過去 2 年的資料於首次執行時自動回補，回補完成前長區間會標示已累積的週數。</li>
       <li><b>兒科條件</b>：MeSH 為 Child、Infant、Adolescent、Pediatrics，或標題／摘要含 pediatric、paediatric、child、infant、neonat、newborn、adolescen 等字。</li>
       <li><b>次專科條件</b>：每個次專科各有一組 MeSH 主題詞與標題／摘要關鍵字（見下方完整搜尋式），三者以 AND 結合：<i>次專科</i> AND <i>兒科</i> AND <i>文章類型</i>。</li>
       <li><b>收錄類型</b>：Journal Article、Review、Systematic Review、Meta-Analysis、Guideline、Practice Guideline、Consensus Development Conference。</li>
       <li><b>排除</b>：Comment、Editorial、Letter、Erratum、Case Reports、Retracted Publication、Preprint；並限定<b>有摘要</b>、<b>英文</b>。</li>
-      <li><b>依期刊影響力篩選</b>：每個次專科先取出 7 天內所有符合文章，依刊登期刊的影響力由高到低排序（同分時較新者優先），保留前 <span class="L-max">80</span> 篇；同一篇符合多個次專科時只列一次，並標上所有相關次專科。</li>
+      <li><b>依期刊影響力篩選</b>：每個次專科先取出 7 天內所有符合文章，依刊登期刊的影響力由高到低排序（同分時較新者優先），保留前 <span class="L-max">80</span> 篇；<b>共識與指引不受此限，全部收錄</b>；同一篇符合多個次專科時只列一次，並標上所有相關次專科。</li>
       <li><b>IF 數值說明</b>：官方 Journal Impact Factor（Clarivate JCR）無公開免費資料，本站採用 OpenAlex 的「2-year mean citedness」（期刊前兩年文章的平均被引次數，計算方式與 IF 相同），顯示為「IF≈」，數值與官方 IF 相近但不完全相同；查無資料的期刊視為 0，排在最後。</li>
       <li><b>四區分類</b>（依序判斷，符合即歸類）：
         <table>
