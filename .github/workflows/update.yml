@@ -8,6 +8,7 @@ on:
   push:
     branches: [main, master]
     paths-ignore:
+      - "data/**"
       - "site/data.json"
       - "site/archive/**"
       - "README.md"
@@ -26,6 +27,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
 
@@ -39,16 +41,17 @@ jobs:
           NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           RUN_EVENT: ${{ github.event_name }}
-          DAYS_BACK: "7"
           MAX_PER_SPECIALTY: "80"
           POOL_PER_SPECIALTY: "1000"
+          BACKFILL_WEEKS: "104"      # 回補 2 年
+          BACKFILL_MINUTES: "240"    # 單次回補上限，未完成下次接續
         run: python scripts/fetch_pubmed.py
 
       - name: Commit data (keeps the repo active so the weekly schedule stays on)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add site/data.json site/archive
+          git add data site/data.json site/archive
           if git diff --cached --quiet; then
             echo "No changes"
           else
