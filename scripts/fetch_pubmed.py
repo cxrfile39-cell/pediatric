@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Fetch the latest pediatric literature from PubMed, grouped by subspecialty.
+"""Fetch last week's pediatric literature from PubMed, grouped by subspecialty.
 
-Writes site/data.json (latest week), site/archive/YYYY-MM-DD.json and site/archive/index.json.
-Weekly window = previous Monday-Sunday (PubMed entry date). For each subspecialty all matches
-(up to POOL_PER_SPECIALTY) are ranked by journal impact (OpenAlex 2-year mean citedness, an open
-IF-equivalent metric) and the top MAX_PER_SPECIALTY are kept. Compact weekly rankings are stored
-in data/chunks/ (back-filled for 2 years) and merged into site/range-30/365/730.json.
+Weekly window = previous Monday-Sunday (PubMed entry date). All matching articles are kept
+(MAX_PER_SPECIALTY=0 means no limit; guidelines are always kept); each article is tagged with its
+journal impact (OpenAlex 2-year mean citedness, an open IF-equivalent metric) for sorting.
+30-day / 1-year / 2-year views are queried live from PubMed by the web page.
 Standard library only. Optional env vars: NCBI_API_KEY, NCBI_EMAIL, OPENALEX_API_KEY,
-MAX_PER_SPECIALTY, POOL_PER_SPECIALTY, BACKFILL_WEEKS, BACKFILL_MINUTES.
+MAX_PER_SPECIALTY, POOL_PER_SPECIALTY.
 """
 import json
 import os
@@ -24,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
 EMAIL = os.environ.get("NCBI_EMAIL", "").strip()
-MAX_PER = int(os.environ.get("MAX_PER_SPECIALTY", "80"))
+MAX_PER = int(os.environ.get("MAX_PER_SPECIALTY", "0"))   # 0 = 不限篇數
 POOL = int(os.environ.get("POOL_PER_SPECIALTY", "1000"))
 OPENALEX = "https://api.openalex.org/sources"
 OPENALEX_KEY = os.environ.get("OPENALEX_API_KEY", "").strip()
@@ -347,17 +346,13 @@ def write_index(arch):
 
 
 TPE = timezone(timedelta(hours=8))
-CHUNKS = ROOT / "data" / "chunks"           # 每週精簡排名（回補與區間計算用，不發布）
-RANGES = [30, 365, 730]                      # 7 天直接使用每週資料
-BACKFILL_WEEKS = int(os.environ.get("BACKFILL_WEEKS", "104"))
-BACKFILL_MINUTES = float(os.environ.get("BACKFILL_MINUTES", "240"))
 
 
 def search_settings():
     return {
         "pediatricFilter": PEDS,
         "typeFilter": TYPES,
-        "maxPerSpecialty": MAX_PER,
+        "maxPerSpecialty": MAX_PER if MAX_PER > 0 else "unlimited",
         "poolPerSpecialty": POOL,
         "ranking": "OpenAlex 2yr_mean_citedness",
         "guidelines": "all included (not limited by IF ranking)",
@@ -413,25 +408,8 @@ def pick(rows):
         if r[0] not in seen:
             seen.add(r[0]); uniq.append(r)
     guides = [r for r in uniq if r[3]]
-    others = [r for r in uniq if not r[3]][:MAX_PER]
-    return guides + others
-
-
-def save_chunk(monday, counts, top):
-    CHUNKS.mkdir(parents=True, exist_ok=True)
-    s, e = window(monday)
-    (CHUNKS / f"{monday:%Y-%m-%d}.json").write_text(json.dumps({
-        "week": f"{monday:%Y-%m-%d}", "from": f"{s:%Y-%m-%d}", "to": f"{e:%Y-%m-%d}",
-        "settings": search_settings(), "counts": counts, "top": top}, ensure_ascii=False), encoding="utf-8")
-
-
-def load_chunk(monday):
-    f = CHUNKS / f"{monday:%Y-%m-%d}.json"
-    try:
-        d = json.loads(f.read_text(encoding="utf-8"))
-        return d if d.get("settings") == search_settings() else None
-    except (OSError, ValueError):
-        return None
+    others = [r for r in uniq if not r[3]]
+    return guides + (others[:MAX_PER] if MAX_PER > 0 else others)
 
 
 _DETAILS = {}
@@ -477,7 +455,7 @@ def weekly(now, arch):
     monday = this_monday(now)
     event = os.environ.get("RUN_EVENT", "")
     cur = arch / f"{monday:%Y-%m-%d}.json"
-    if event == "push" and cur.exists() and load_chunk(monday):
+    if event == "push" and cur.exists():
         try:
             same = json.loads(cur.read_text(encoding="utf-8")).get("search") == search_settings()
         except (OSError, ValueError):
@@ -489,54 +467,10 @@ def weekly(now, arch):
     print(f"Weekly fetch {start:%Y-%m-%d} ~ {end:%Y-%m-%d}")
     _OA_FAILED.clear()
     counts, top = rank_window(start, end)
-    if not _OA_FAILED:
-        save_chunk(monday, counts, top)
     payload = build_payload(now, top, counts, start, end, 7, {"week": f"{monday:%Y-%m-%d}"})
     write_json(ROOT / "site" / "data.json", payload)
     write_json(cur, payload)
     print(f"Weekly: {len(payload['articles'])} articles.")
-
-
-def backfill(now):
-    """補齊過去 BACKFILL_WEEKS 週的精簡排名；超過時間預算就停，下次執行接著做。"""
-    t0 = time.time()
-    monday = this_monday(now)
-    for k in range(1, BACKFILL_WEEKS):
-        if (time.time() - t0) / 60 > BACKFILL_MINUTES:
-            print("Backfill time budget reached; will continue next run.")
-            break
-        m = monday - timedelta(weeks=k)
-        if load_chunk(m):
-            continue
-        s, e = window(m)
-        print(f"Backfill week {m:%Y-%m-%d} ({s:%Y-%m-%d} ~ {e:%Y-%m-%d})")
-        _OA_FAILED.clear()
-        counts, top = rank_window(s, e)
-        if _OA_FAILED:
-            print("OpenAlex unavailable; stop backfill, retry next run.")
-            break
-        save_chunk(m, counts, top)
-
-
-def build_ranges(now):
-    """由每週排名合併出 30 天／1 年／2 年：指引全部保留；其他文章取各週前 80 篇的聯集再取前 80 篇，
-    等同直接在整個區間內依影響力取前 80 篇。"""
-    monday = this_monday(now)
-    for days in RANGES:
-        n_weeks = days // 7
-        weeks = [monday - timedelta(weeks=k) for k in range(n_weeks)]
-        chunks = [c for c in (load_chunk(m) for m in weeks) if c]
-        merged, counts = {}, {}
-        for c in chunks:
-            for name, rows in c["top"].items():
-                merged.setdefault(name, []).extend(rows)
-                counts[name] = counts.get(name, 0) + c["counts"].get(name, 0)
-        top = {name: pick(rows) for name, rows in merged.items()}
-        start, end = window(weeks[-1])[0], window(monday)[1]
-        payload = build_payload(now, top, counts, start, end, days,
-                                {"weeksIncluded": len(chunks), "weeksExpected": n_weeks})
-        write_json(ROOT / "site" / f"range-{days}.json", payload)
-        print(f"Range {days}d: {len(chunks)}/{n_weeks} weeks, {len(payload['articles'])} articles.")
 
 
 def main():
@@ -544,8 +478,7 @@ def main():
     arch = ROOT / "site" / "archive"
     weekly(now, arch)
     write_index(arch)
-    backfill(now)
-    build_ranges(now)
+    # 30 天／1 年／2 年改由網頁即時查詢 PubMed，不再預先回補
 
 
 if __name__ == "__main__":
