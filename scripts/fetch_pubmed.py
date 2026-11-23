@@ -177,6 +177,8 @@ def summaries(pmids):
                 "issns": [x for x in (r.get("issn", ""), r.get("essn", "")) if x],
                 "journal": r.get("fulljournalname", "") or r.get("source", ""),
                 "sortpubdate": r.get("sortpubdate", ""),
+                "pubtypes": r.get("pubtype", []) or [],
+                "title": r.get("title", ""),
             }
     return out
 
@@ -358,6 +360,7 @@ def search_settings():
         "maxPerSpecialty": MAX_PER,
         "poolPerSpecialty": POOL,
         "ranking": "OpenAlex 2yr_mean_citedness",
+        "guidelines": "all included (not limited by IF ranking)",
         "window": "previous Monday-Sunday by PubMed entry date",
         "queries": {n: q for n, q in SPECIALTIES},
     }
@@ -391,13 +394,27 @@ def rank_window(start, end):
 
     def score(pmid):
         return max([impact.get(x, 0) for x in summ.get(pmid, {}).get("issns", [])] or [0])
+    def is_guide(i):
+        v = summ.get(i, {})
+        return 1 if classify(v.get("pubtypes", []), v.get("title", "")) == "Guideline" else 0
     top = {}
     for name, ids in pools.items():
-        rows = [[i, score(i), summ.get(i, {}).get("sortpubdate", "")] for i in ids]
-        rows.sort(key=lambda r: (r[1], r[2], r[0]), reverse=True)
-        top[name] = rows[:MAX_PER]
+        rows = [[i, score(i), summ.get(i, {}).get("sortpubdate", ""), is_guide(i)] for i in ids]
+        top[name] = pick(rows)
     print(f"  window {a}-{b}: candidates {len(all_ids)}")
     return counts, top
+
+
+def pick(rows):
+    """共識／指引全部收錄；其他文章依影響力（同分看日期）取前 MAX_PER 篇。
+    rows: [pmid, impact, sortpubdate, isGuideline]"""
+    seen, uniq = set(), []
+    for r in sorted(rows, key=lambda r: (r[1], r[2], r[0]), reverse=True):
+        if r[0] not in seen:
+            seen.add(r[0]); uniq.append(r)
+    guides = [r for r in uniq if r[3]]
+    others = [r for r in uniq if not r[3]][:MAX_PER]
+    return guides + others
 
 
 def save_chunk(monday, counts, top):
@@ -430,7 +447,7 @@ def details(pmids):
 def build_payload(now, top, counts, start, end, days, extra=None):
     chosen, scores = {}, {}
     for name, rows in top.items():
-        for pmid, sc, _ in rows:
+        for pmid, sc, *_ in rows:
             chosen.setdefault(pmid, []).append(name)
             scores[pmid] = sc
     arts = details(list(chosen))
@@ -502,7 +519,7 @@ def backfill(now):
 
 
 def build_ranges(now):
-    """由每週排名合併出 30 天／1 年／2 年：各週前 80 篇的聯集再取前 80 篇，
+    """由每週排名合併出 30 天／1 年／2 年：指引全部保留；其他文章取各週前 80 篇的聯集再取前 80 篇，
     等同直接在整個區間內依影響力取前 80 篇。"""
     monday = this_monday(now)
     for days in RANGES:
@@ -514,13 +531,7 @@ def build_ranges(now):
             for name, rows in c["top"].items():
                 merged.setdefault(name, []).extend(rows)
                 counts[name] = counts.get(name, 0) + c["counts"].get(name, 0)
-        top = {}
-        for name, rows in merged.items():
-            seen, uniq = set(), []
-            for r in sorted(rows, key=lambda r: (r[1], r[2], r[0]), reverse=True):
-                if r[0] not in seen:
-                    seen.add(r[0]); uniq.append(r)
-            top[name] = uniq[:MAX_PER]
+        top = {name: pick(rows) for name, rows in merged.items()}
         start, end = window(weeks[-1])[0], window(monday)[1]
         payload = build_payload(now, top, counts, start, end, days,
                                 {"weeksIncluded": len(chunks), "weeksExpected": n_weeks})
