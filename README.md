@@ -31,6 +31,8 @@ site/index.html                網頁（全選／全不選、類型篩選、搜�
 site/data.json                 最新一週資料（自動產生）
 site/archive/YYYY-MM-DD.json   每週歷史存檔，網頁「週次」選單可切換
 site/archive/index.json        週次清單（自動產生）
+site/range-30|365|730.json     30 天／1 年／2 年區間（每次執行產生，不存進 repo）
+data/chunks/YYYY-MM-DD.json    每週各科依 IF 排序前 80 篇的精簡排名（區間合併用；首次自動回補 2 年）
 ```
 
 資料來源：NCBI PubMed。僅供學術參考，臨床決策請以原文為準。
