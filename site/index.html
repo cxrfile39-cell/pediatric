@@ -77,6 +77,7 @@
               display:grid;place-content:center;cursor:pointer;transition:transform .15s}
   .list input:checked{background:var(--c2);border-color:var(--c2);transform:rotate(-8deg)}
   .list input:checked::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+  body.live .list .n{display:none}
   .list .n{margin-left:auto;flex:none;min-width:26px;text-align:center;color:var(--c1);background:var(--c1-soft);
            border-radius:999px;font-size:.76rem;padding:0 7px;font-variant-numeric:tabular-nums}
 
@@ -107,6 +108,11 @@
   .past a{color:var(--c2);font-weight:700;cursor:pointer}
   select{font:inherit;padding:9px 14px;border:2.5px solid var(--c1);border-radius:999px;background:#fff;color:var(--c1)}
   .count{color:var(--muted);font-size:.92rem;margin:0 0 12px 6px}
+  .pm{margin-top:6px;font-size:.86rem}
+  .pmbtn{display:inline-block;margin:4px 0 0;padding:3px 12px;border:2px solid var(--c2);border-radius:999px;color:var(--c2);
+         font-weight:700;text-decoration:none;background:#fff}
+  .pmbtn:hover{background:var(--c2);color:#fff}
+  .empty .pmbtn{margin-top:12px}
   .count b{color:#fff;background:var(--c2);border-radius:999px;padding:0 9px}
 
   /* 卡片 */
@@ -274,7 +280,7 @@
     <div class="toolbar">
       <label class="search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.8"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3.2" stroke-linecap="round"/></svg>
-        <input type="search" id="q" placeholder="搜尋標題、期刊、作者、摘要…" aria-label="搜尋">
+        <input type="search" id="q" placeholder="在本週收錄的文章中搜尋（標題、摘要、期刊、作者）" aria-label="搜尋">
       </label>
       <select id="week" aria-label="週次"><option value="data.json">本週</option></select>
       <select id="sort">
@@ -294,13 +300,14 @@
     <h2><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.6"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3" stroke-linecap="round"/></svg>搜尋邏輯說明</h2>
     <ol>
       <li><b>資料來源</b>：NCBI PubMed（E-utilities API），每週一 08:00（台灣時間）自動執行。</li>
-      <li><b>時間範圍</b>：以 PubMed 收錄日期（Entrez date）為準，可選 <b>7 天</b>（每週一更新上週一至週日，並可切換過去週次）、<b>30 天</b>（最近 4 週）、<b>1 年</b>（最近 52 週）、<b>2 年</b>（最近 104 週）。</li>
-      <li><b>長區間計算方式</b>：系統每週保存各次專科的全部指引及依影響力排序的前 80 篇，30 天／1 年／2 年由這些每週結果合併：指引全部保留，其他文章再取前 80 篇，結果與直接在整個區間內依影響力篩選相同。過去 2 年的資料於首次執行時自動回補，回補完成前長區間會標示已累積的週數。</li>
+      <li><b>時間範圍</b>：以 PubMed 收錄日期（Entrez date）為準。<b>7 天</b>：每週一整理上週一至週日的文章，可切換過去週次；<b>30 天／1 年／2 年</b>：網頁直接向 PubMed 即時查詢，從今天往前推算。</li>
       <li><b>兒科條件</b>：MeSH 為 Child、Infant、Adolescent、Pediatrics，或標題／摘要含 pediatric、paediatric、child、infant、neonat、newborn、adolescen 等字。</li>
       <li><b>次專科條件</b>：每個次專科各有一組 MeSH 主題詞與標題／摘要關鍵字（見下方完整搜尋式），三者以 AND 結合：<i>次專科</i> AND <i>兒科</i> AND <i>文章類型</i>。</li>
+      <li><b>關鍵字搜尋</b>：7 天時在本週收錄的文章中搜尋；30 天／1 年／2 年時，關鍵字會直接加入 PubMed 查詢條件。</li>
       <li><b>收錄類型</b>：Journal Article、Review、Systematic Review、Meta-Analysis、Guideline、Practice Guideline、Consensus Development Conference。</li>
       <li><b>排除</b>：Comment、Editorial、Letter、Erratum、Case Reports、Retracted Publication、Preprint；並限定<b>有摘要</b>、<b>英文</b>。</li>
-      <li><b>依期刊影響力篩選</b>：每個次專科先取出 7 天內所有符合文章，依刊登期刊的影響力由高到低排序（同分時較新者優先），保留前 <span class="L-max">80</span> 篇；<b>共識與指引不受此限，全部收錄</b>；同一篇符合多個次專科時只列一次，並標上所有相關次專科。</li>
+      <li><b>篇數</b>：所有區間皆<b>不限篇數</b>，符合條件的文章全部列出；同一篇符合多個次專科時只列一次。</li>
+      <li><b>排序</b>：7 天預設依期刊影響力（IF）由高到低，也可改依日期或期刊名稱；30 天／1 年／2 年依出版日期由新到舊，每篇標示 IF。</li>
       <li><b>IF 數值說明</b>：官方 Journal Impact Factor（Clarivate JCR）無公開免費資料，本站採用 OpenAlex 的「2-year mean citedness」（期刊前兩年文章的平均被引次數，計算方式與 IF 相同），顯示為「IF≈」，數值與官方 IF 相近但不完全相同；查無資料的期刊視為 0，排在最後。</li>
       <li><b>四區分類</b>（依序判斷，符合即歸類）：
         <table>
@@ -309,6 +316,7 @@
           <tr><td>Review</td><td>類型為 Review；或標題含 narrative / scoping / literature review</td></tr>
           <tr><td>Original</td><td>其餘所有文章</td></tr>
         </table>
+        30 天／1 年／2 年的即時查詢僅依 PubMed 文章類型分類（不含標題關鍵字判斷）。
       </li>
       <li><b>限制</b>：關鍵字搜尋可能收錄部分非兒科為主的研究，或漏收未使用上述字詞的文章；新收錄文章常尚未完成 MeSH 標引，因此同時使用標題／摘要關鍵字。</li>
     </ol>
@@ -338,7 +346,7 @@ const TYPE_ICON = {
   Guideline: '<svg viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3 9-7 11-4-2-7-6-7-11V5z" fill="none" stroke="#E4572E" stroke-width="2.4" stroke-linejoin="round"/><path d="M8.5 12l2.5 2.5 4.5-5" stroke="#12355B" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>'};
 const CHEV = '<svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const PREVIEW = 3;   // 每區預設顯示篇數
-const state = {data: null, specs: new Set(), types: new Set(TYPES), q: "", sort: "if", open: new Set()};
+const state = {data: null, specs: new Set(), types: new Set(TYPES), q: "", sort: "if", open: new Set(), shown: {}};
 
 // 依 PubMed publication type（及標題關鍵字）分四類；舊存檔也適用
 function classify(a) {
@@ -369,7 +377,7 @@ function save() {
 
 function buildFilters() {
   const d = state.data;
-  d.articles.forEach(a => a.cat = classify(a));
+  d.articles.forEach(a => { a.cat = classify(a); a._hay = norm([a.title, a.journal, a.abstract, a.authors.join(" ")].join(" ")); });
   const perSpec = {};
   d.articles.forEach(a => a.specialties.forEach(s => perSpec[s] = (perSpec[s] || 0) + 1));
   const known = new Set(d.specialties);
@@ -399,6 +407,23 @@ function setAll(on) {
   save(); render();
 }
 
+// 搜尋：不分大小寫、不分字詞順序、英美拼字視為相同
+function norm(t) {
+  return String(t || "").toLowerCase()
+    .replace(/anaem/g, "anem").replace(/haem/g, "hem").replace(/paediatr/g, "pediatr")
+    .replace(/leukaem/g, "leukem").replace(/oesophag/g, "esophag").replace(/oedema/g, "edema")
+    .replace(/tumour/g, "tumor").replace(/behaviour/g, "behavior").replace(/foetal/g, "fetal")
+    .replace(/[-‐–—_/,.;:()"'’]/g, " ");
+}
+// 直接到 PubMed 搜尋：使用者關鍵字 + 兒科條件 + 目前選擇的區間
+function pubmedLink(q) {
+  const d = curRange === 7 ? (state.data || {}) : live;
+  const peds = '("Child"[Mesh] OR "Infant"[Mesh] OR "Adolescent"[Mesh] OR pediatric*[tiab] OR paediatric*[tiab] OR child*[tiab] OR infant*[tiab] OR neonat*[tiab] OR adolescen*[tiab])';
+  const span = d.from && d.to ? ` AND ("${ymd(d.from)}"[edat] : "${ymd(d.to)}"[edat])` : "";
+  const url = "https://pubmed.ncbi.nlm.nih.gov/?sort=date&term=" + encodeURIComponent(`(${q}) AND ${peds}${span}`);
+  return `<a class="pmbtn" href="${url}" target="_blank" rel="noopener">到 PubMed 搜尋「${esc(q)}」（兒科、同一區間）↗</a>`;
+}
+
 function card(a) {
   return `
     <article class="card ${a.cat}">
@@ -416,47 +441,238 @@ function card(a) {
     </article>`;
 }
 
+const STATIC_PAGE = 50;   // 展開後每次顯示篇數（7 天）
+function secHTML(t, count, cards, foot, open) {
+  return `
+    <section class="sec ${open ? "open" : ""}">
+      <button class="sec-h" data-sec="${t}" aria-expanded="${open}">
+        <span class="ico">${TYPE_ICON[t]}</span>
+        <span>${TYPE_LABEL[t]}<br><span class="zh">${TYPE_ZH[t]}</span></span>
+        <span class="num">${count.toLocaleString()} 篇</span>${CHEV}
+      </button>
+      <div class="sec-b">
+        ${count ? cards : '<div class="sec-empty">本區沒有符合條件的文章</div>'}
+        ${foot}
+      </div>
+    </section>`;
+}
+
 function render() {
-  const q = state.q.trim().toLowerCase();
+  if (curRange !== 7) { liveSchedule(700); return; }
+  const q = state.q.trim();
+  const words = norm(q).split(/\s+/).filter(Boolean);
   let list = state.data.articles.filter(a =>
     state.types.has(a.cat) &&
     a.specialties.some(s => state.specs.has(s)) &&
-    (!q || [a.title, a.journal, a.abstract, a.authors.join(" ")].join(" ").toLowerCase().includes(q)));
+    words.every(w => a._hay.includes(w)));
   const byDate = (a, b) => (b.sortDate || "").localeCompare(a.sortDate || "");
   if (state.sort === "journal") list = [...list].sort((a, b) => a.journal.localeCompare(b.journal) || byDate(a, b));
   else if (state.sort === "date") list = [...list].sort(byDate);
   else list = [...list].sort((a, b) => (b.if || 0) - (a.if || 0) || byDate(a, b));
-  $("count").innerHTML = `顯示 <b>${list.length}</b> 篇（共 ${state.data.articles.length} 篇）`;
+  $("count").innerHTML = `顯示 <b>${list.length.toLocaleString()}</b> 篇（共 ${state.data.articles.length.toLocaleString()} 篇）` +
+    (q ? `<div class="pm">想找更長時間的文章？${pubmedLink(q)}</div>` : "");
   if (!list.length) {
-    $("results").innerHTML = `<div class="empty">${SLEEPY}${state.specs.size ? "沒有符合條件的文章" : "請至少勾選一個次專科"}</div>`;
+    $("results").innerHTML = `<div class="empty">${SLEEPY}${!state.specs.size ? "請至少勾選一個次專科"
+      : q ? `本週收錄的文章中沒有「${esc(q)}」<br>${pubmedLink(q)}` : "沒有符合條件的文章"}</div>`;
     return;
   }
   $("results").innerHTML = TYPES.filter(t => state.types.has(t)).map(t => {
     const items = list.filter(a => a.cat === t);
     const open = state.open.has(t);
-    const shown = open ? items : items.slice(0, PREVIEW);
-    const rest = items.length - shown.length;
-    return `
-    <section class="sec ${open ? "open" : ""}">
-      <button class="sec-h" data-sec="${t}" aria-expanded="${open}">
-        <span class="ico">${TYPE_ICON[t]}</span>
-        <span>${TYPE_LABEL[t]}<br><span class="zh">${TYPE_ZH[t]}</span></span>
-        <span class="num">${items.length} 篇</span>${CHEV}
-      </button>
-      <div class="sec-b">
-        ${items.length ? shown.map(card).join("") : '<div class="sec-empty">本區沒有符合條件的文章</div>'}
-        ${rest > 0 ? `<button class="more" data-sec="${t}">展開其餘 ${rest} 篇 ▾</button>`
-          : (open && items.length > PREVIEW ? `<button class="more" data-sec="${t}">收合 ▴</button>` : "")}
-      </div>
-    </section>`;
+    const lim = open ? (state.shown[t] || STATIC_PAGE) : PREVIEW;
+    const shown = items.slice(0, lim);
+    let foot = "";
+    if (!open && items.length > PREVIEW) foot = `<button class="more" data-sec="${t}">展開其餘 ${(items.length - PREVIEW).toLocaleString()} 篇 ▾</button>`;
+    else if (open && items.length > shown.length) foot = `<button class="more" data-more="${t}">再顯示 ${Math.min(STATIC_PAGE, items.length - shown.length)} 篇（已顯示 ${shown.length} / ${items.length.toLocaleString()}）▾</button>`;
+    else if (open && items.length > PREVIEW) foot = `<button class="more" data-sec="${t}">收合 ▴</button>`;
+    return secHTML(t, items.length, shown.map(card).join(""), foot, open);
   }).join("");
 }
 
+// ===== 30 天／1 年／2 年：網頁直接向 PubMed 即時查詢（不限篇數） =====
+const NCBI = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
+const PT_G = '("guideline"[pt] OR "practice guideline"[pt] OR "consensus development conference"[pt])';
+const PT_M = '("meta-analysis"[pt] OR "systematic review"[pt])';
+const PT_R = '"review"[pt]';
+const LIVE_PAGE = 20;
+const live = {seq: 0, secs: {}, timer: null, from: "", to: ""};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let ncbiChain = Promise.resolve(), ncbiLast = 0;
+function ncbi(ep, params) {           // PubMed 限制每秒 3 次，排隊送出並自動重試
+  const run = async () => {
+    for (let i = 0; ; i++) {
+      const wait = ncbiLast + 400 - Date.now(); if (wait > 0) await sleep(wait);
+      ncbiLast = Date.now();
+      try {
+        const r = await fetch(NCBI + ep, {method: "POST",
+          body: new URLSearchParams(Object.assign({db: "pubmed", tool: "peds-lit-weekly"}, params))});
+        if (!r.ok) throw new Error("PubMed HTTP " + r.status);
+        return params.retmode === "json" ? await r.json() : await r.text();
+      } catch (e) { if (i >= 3) throw e; await sleep(1500 * (i + 1)); }
+    }
+  };
+  const p = ncbiChain.then(run, run);
+  ncbiChain = p.catch(() => {});
+  return p;
+}
+function liveBase() {
+  const s = state.data.search;
+  const specs = [...state.specs].map(n => s.queries[n]).filter(Boolean);
+  let base = `(${specs.map(q => `(${q})`).join(" OR ")}) AND ${s.pediatricFilter} AND (${s.typeFilter})`;
+  if (state.q.trim()) base += ` AND (${state.q.trim()})`;
+  return base;
+}
+function secTerm(base, t) {           // 四區互不重疊（依 PubMed 文章類型）
+  if (t === "Guideline") return `(${base}) AND ${PT_G}`;
+  if (t === "Meta") return `(${base}) AND ${PT_M} NOT ${PT_G}`;
+  if (t === "Review") return `(${base}) AND ${PT_R} NOT ${PT_M} NOT ${PT_G}`;
+  return `(${base}) NOT (${PT_G} OR ${PT_M} OR ${PT_R})`;
+}
+function liveSchedule(delay) { clearTimeout(live.timer); live.timer = setTimeout(runLive, delay || 0); }
+async function runLive() {
+  const seq = ++live.seq, days = curRange;
+  const types = TYPES.filter(t => state.types.has(t));
+  live.secs = {};
+  if (!state.data || !state.data.search) { liveError(new Error("缺少搜尋設定，請等每週資料更新後再試")); return; }
+  if (!state.specs.size || !types.length) {
+    $("count").innerHTML = "";
+    $("results").innerHTML = `<div class="empty">${SLEEPY}${state.specs.size ? "請至少選一種文章類型" : "請至少勾選一個次專科"}</div>`;
+    return;
+  }
+  $("count").innerHTML = "正在向 PubMed 查詢…";
+  $("results").innerHTML = `<div class="empty">${SLEEPY}正在向 PubMed 即時查詢${RANGE_NAME[days]}的文章…</div>`;
+  const base = liveBase();
+  try {
+    for (const t of types) {
+      const r = await ncbi("esearch.fcgi", {term: secTerm(base, t), usehistory: "y", retmax: 0, retmode: "json",
+                                            sort: "pub_date", datetype: "edat", reldate: days});
+      if (seq !== live.seq) return;
+      const e = r.esearchresult || {};
+      if (e.ERROR || r.error) throw new Error(e.ERROR || r.error);
+      live.secs[t] = {count: +e.count || 0, webenv: e.webenv, qk: e.querykey, items: [], loading: false};
+    }
+    renderLive();
+    for (const t of types) await liveMore(t, state.open.has(t) ? LIVE_PAGE : PREVIEW, seq);
+  } catch (err) { if (seq === live.seq) liveError(err); }
+}
+async function liveMore(t, n, seq) {
+  seq = seq || live.seq;
+  const s = live.secs[t];
+  if (!s || s.loading || s.items.length >= s.count) return;
+  s.loading = true; renderLive();
+  try {
+    const xml = await ncbi("efetch.fcgi", {WebEnv: s.webenv, query_key: s.qk, retstart: s.items.length, retmax: n, retmode: "xml"});
+    if (seq !== live.seq) return;
+    const arts = parseXML(xml);
+    arts.forEach(a => a.cat = t);
+    await addImpact(arts);
+    if (seq !== live.seq) return;
+    if (!arts.length) s.count = s.items.length;
+    s.items.push(...arts);
+  } catch (err) {
+    if (seq === live.seq) liveError(err);
+  } finally {
+    s.loading = false;
+    if (seq === live.seq) renderLive();
+  }
+}
+function renderLive() {
+  const types = TYPES.filter(t => live.secs[t]);
+  const total = types.reduce((n, t) => n + live.secs[t].count, 0);
+  const q = state.q.trim();
+  $("count").innerHTML = `PubMed 即時搜尋：共 <b>${total.toLocaleString()}</b> 篇（依出版日期由新到舊）` +
+    (q ? `<div class="pm">${pubmedLink(q)}</div>` : "");
+  if (!total) {
+    $("results").innerHTML = `<div class="empty">${SLEEPY}${RANGE_NAME[curRange]}內沒有符合條件的文章${q ? "<br>" + pubmedLink(q) : ""}</div>`;
+    return;
+  }
+  $("results").innerHTML = types.map(t => {
+    const s = live.secs[t], open = state.open.has(t);
+    const shown = open ? s.items : s.items.slice(0, PREVIEW);
+    let foot = "";
+    if (s.loading) foot = '<div class="sec-empty">載入中…</div>';
+    else if (!open && s.count > PREVIEW) foot = `<button class="more" data-sec="${t}">展開（共 ${s.count.toLocaleString()} 篇）▾</button>`;
+    else if (open && s.items.length < s.count) foot = `<button class="more" data-more="${t}">再載入 ${Math.min(LIVE_PAGE, s.count - s.items.length)} 篇（已顯示 ${s.items.length} / ${s.count.toLocaleString()}）▾</button>`;
+    else if (open && s.count > PREVIEW) foot = `<button class="more" data-sec="${t}">收合 ▴</button>`;
+    return secHTML(t, s.count, shown.map(card).join(""), foot, open);
+  }).join("");
+}
+function liveError(err) {
+  console.error(err);
+  const q = state.q.trim();
+  $("count").innerHTML = "";
+  $("results").innerHTML = `<div class="empty">${SLEEPY}PubMed 查詢失敗（${esc(err && err.message || err)}）。請稍後再試${q ? "，或直接" + pubmedLink(q) : "。"}</div>`;
+}
+const MON = {jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12};
+function parseXML(txt) {
+  const doc = new DOMParser().parseFromString(txt, "text/xml");
+  const tx = (el, sel) => { const e = el && el.querySelector(sel); return e ? e.textContent.trim() : ""; };
+  return [...doc.getElementsByTagName("PubmedArticle")].map(pa => {
+    const art = pa.querySelector("MedlineCitation > Article");
+    const authors = [...art.querySelectorAll("AuthorList > Author")]
+      .map(a => tx(a, "CollectiveName") || [tx(a, "LastName"), tx(a, "Initials")].filter(Boolean).join(" ")).filter(Boolean);
+    const abs = [...art.querySelectorAll("Abstract > AbstractText")]
+      .map(e => (e.getAttribute("Label") ? e.getAttribute("Label") + ": " : "") + e.textContent.trim()).join("\n");
+    let date = "";
+    const pd = art.querySelector("Journal > JournalIssue > PubDate");
+    if (pd) {
+      const y = tx(pd, "Year");
+      if (y) {
+        const m = tx(pd, "Month"), d = tx(pd, "Day");
+        const mm = m ? (isNaN(m) ? MON[m.slice(0, 3).toLowerCase()] : +m) : 0;
+        date = y + (mm ? "-" + String(mm).padStart(2, "0") : "") + (mm && d ? "-" + d.padStart(2, "0") : "");
+      } else date = tx(pd, "MedlineDate");
+    }
+    const doi = [...pa.querySelectorAll("PubmedData > ArticleIdList > ArticleId")].find(e => e.getAttribute("IdType") === "doi");
+    const issns = [...art.querySelectorAll("Journal > ISSN")].map(e => e.textContent.trim());
+    const linking = tx(pa, "MedlineJournalInfo > ISSNLinking"); if (linking) issns.push(linking);
+    return {
+      pmid: tx(pa, "MedlineCitation > PMID"), title: tx(art, "ArticleTitle"),
+      journal: tx(art, "Journal > ISOAbbreviation") || tx(art, "Journal > Title"),
+      date, sortDate: date, abstract: abs, issns, specialties: [],
+      authors: authors.length > 6 ? authors.slice(0, 6).concat("et al.") : authors,
+      pubTypes: [...art.querySelectorAll("PublicationTypeList > PublicationType")].map(e => e.textContent.trim()),
+      doi: doi ? doi.textContent.trim() : "",
+    };
+  });
+}
+const IFC = {};   // ISSN -> OpenAlex 2-year mean citedness
+async function addImpact(arts) {
+  const need = [...new Set(arts.flatMap(a => a.issns))].filter(x => !(x in IFC));
+  for (let i = 0; i < need.length; i += 50) {
+    const chunk = need.slice(i, i + 50);
+    try {
+      const r = await fetch("https://api.openalex.org/sources?" + new URLSearchParams(
+        {filter: "issn:" + chunk.join("|"), per_page: 200, select: "issn,summary_stats"}));
+      const j = await r.json();
+      chunk.forEach(x => IFC[x] = 0);
+      (j.results || []).forEach(src => {
+        const v = src.summary_stats && src.summary_stats["2yr_mean_citedness"];
+        if (v != null) (src.issn || []).forEach(x => IFC[x] = Math.max(IFC[x] || 0, Math.round(v * 100) / 100));
+      });
+    } catch (e) { console.warn(e); }
+  }
+  arts.forEach(a => a.if = Math.max(0, ...a.issns.map(x => IFC[x] || 0)));
+}
+
 $("results").addEventListener("click", e => {
+  const m = e.target.closest("[data-more]");
+  if (m) {
+    const t = m.dataset.more;
+    if (curRange === 7) { state.shown[t] = (state.shown[t] || STATIC_PAGE) + STATIC_PAGE; render(); }
+    else liveMore(t, LIVE_PAGE);
+    return;
+  }
   const b = e.target.closest("[data-sec]"); if (!b) return;
-  const t = b.dataset.sec, sec = b.closest(".sec");
+  const t = b.dataset.sec;
   state.open.has(t) ? state.open.delete(t) : state.open.add(t);
-  render();
+  delete state.shown[t];
+  if (curRange === 7) render();
+  else {
+    renderLive();
+    const s = live.secs[t];
+    if (state.open.has(t) && s && s.items.length < Math.min(LIVE_PAGE, s.count)) liveMore(t, LIVE_PAGE - s.items.length);
+  }
   if (!state.open.has(t)) { const el = document.querySelector(`.sec-h[data-sec="${t}"]`); el && el.scrollIntoView({block: "nearest"}); }
 });
 
@@ -487,24 +703,23 @@ function showData(d, note) {
   try { buildFilters(); render(); showLogic(d); }
   catch (e) { throw new Error("顯示時發生錯誤：" + (e && e.message)); }
 }
-function showRange(days) {
-  $("results").innerHTML = '<div class="empty">' + SLEEPY + `${RANGE_NAME[days]}資料載入中，請稍候…</div>`;
-  return getJSON(`range-${days}.json`).then(d => {
-    if (curRange !== days) return;
-    const partial = d.weeksIncluded < d.weeksExpected;
-    showData(d, partial ? `資料回補中：目前已累積 ${d.weeksIncluded} / ${d.weeksExpected} 週，完成後會自動補齊。` : "");
-  });
-}
 function setRange(days) {
+  if (!state.data) return;
   curRange = days;
   document.querySelectorAll("#ranges button").forEach(b => b.classList.toggle("on", +b.dataset.r === days));
   $("week").classList.toggle("hide", days !== 7);
-  const p = days === 7 ? showWeek($("week").value) : showRange(days);
-  p.catch(err => days === 7 ? noData(err) : rangeMissing(days, err));
-}
-function rangeMissing(days, err) {
-  console.warn(err);
-  $("results").innerHTML = '<div class="empty">' + SLEEPY + `${RANGE_NAME[days]}的資料還在準備中（首次需回補過去資料，約 1–2 小時），請稍後再試。</div>`;
+  document.body.classList.toggle("live", days !== 7);
+  $("sort").disabled = days !== 7;
+  $("q").placeholder = days === 7 ? "在本週收錄的文章中搜尋（標題、摘要、期刊、作者）"
+                                  : "輸入關鍵字，直接查詢 PubMed（例：severe aplastic anemia）";
+  state.open.clear(); state.shown = {};
+  if (days === 7) { showWeek($("week").value).catch(noData); return; }
+  const f = d => d.toISOString().slice(0, 10);
+  live.from = f(new Date(Date.now() - days * 864e5)); live.to = f(new Date());
+  $("span").textContent = `${ymd(live.from)}–${ymd(live.to)}（${RANGE_NAME[days]}）`;
+  $("past").className = "past on";
+  $("past").innerHTML = `即時查詢 PubMed：${RANGE_NAME[days]}內符合條件的文章全部列出、不限篇數，依出版日期由新到舊；每篇標示 IF，但不依 IF 排序。`;
+  runLive();
 }
 // 讀 JSON：加時間參數避開瀏覽器／CDN 快取，並回報清楚的錯誤
 function getJSON(file) {
