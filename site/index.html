@@ -87,6 +87,15 @@
   .types input{display:none}
   .types label.on{background:var(--c1);color:#fff}
 
+  .ranges{grid-column:1/-1;margin-bottom:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px;padding:10px 14px;background:#fff;
+          border:2.5px solid var(--c1);border-radius:20px;box-shadow:0 5px 0 var(--c2-soft)}
+  @media (max-width:600px){.ranges{gap:6px;padding:8px 10px}.ranges .rl{width:100%;margin:0 0 2px 4px;font-size:.9rem}
+    .ranges button{flex:1;padding:5px 0;font-size:.85rem}}
+  .ranges .rl{font-weight:700;color:var(--c1);margin-right:4px}
+  .ranges button{padding:5px 14px;box-shadow:0 3px 0 var(--c1)}
+  .ranges button.on{background:var(--c1);color:#fff}
+  .ranges button.on:hover{color:#fff}
+  #week.hide{display:none}
   .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
   .search{flex:1;min-width:200px;position:relative}
   .search svg{position:absolute;left:14px;top:50%;width:20px;height:20px;transform:translateY(-50%)}
@@ -231,7 +240,7 @@
       <div class="meta">
         <span>更新時間 <b id="updated">載入中…</b></span>
         <span>下次更新 <b id="next">計算中…</b></span>
-        <span>收錄範圍：近 <span id="days">7</span> 天</span>
+        <span>收錄範圍 <b id="span">—</b></span>
         <span>製作者 <strong class="maker">JH CHIU MD × Claude 5.5</strong></span>
       </div>
     </div>
@@ -243,6 +252,13 @@
 </header>
 
 <main class="wrap">
+  <div class="ranges" id="ranges" role="group" aria-label="搜尋區間">
+    <span class="rl">搜尋區間</span>
+    <button data-r="7" class="on">7 天</button>
+    <button data-r="30">30 天</button>
+    <button data-r="365">1 年</button>
+    <button data-r="730">2 年</button>
+  </div>
   <aside>
     <h2><svg viewBox="0 0 24 24"><path d="M12 2l3 6.5 7 .9-5.1 4.9 1.3 7L12 17.8 5.8 21.3l1.3-7L2 9.4l7-.9z" fill="#E4572E"/></svg>文章類型</h2>
     <div class="types" id="types"></div>
@@ -278,7 +294,8 @@
     <h2><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.6"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3" stroke-linecap="round"/></svg>搜尋邏輯說明</h2>
     <ol>
       <li><b>資料來源</b>：NCBI PubMed（E-utilities API），每週一 08:00（台灣時間）自動執行。</li>
-      <li><b>時間範圍</b>：PubMed 收錄日期（Entrez date）在執行前 <span class="L-days">7</span> 天內的文章。</li>
+      <li><b>時間範圍</b>：以 PubMed 收錄日期（Entrez date）為準，可選 <b>7 天</b>（每週一更新上週一至週日，並可切換過去週次）、<b>30 天</b>（最近 4 週）、<b>1 年</b>（最近 52 週）、<b>2 年</b>（最近 104 週）。</li>
+      <li><b>長區間計算方式</b>：系統每週保存各次專科依影響力排序的前 80 篇，30 天／1 年／2 年由這些每週結果合併後再取前 80 篇，結果與直接在整個區間內依影響力篩選相同。過去 2 年的資料於首次執行時自動回補，回補完成前長區間會標示已累積的週數。</li>
       <li><b>兒科條件</b>：MeSH 為 Child、Infant、Adolescent、Pediatrics，或標題／摘要含 pediatric、paediatric、child、infant、neonat、newborn、adolescen 等字。</li>
       <li><b>次專科條件</b>：每個次專科各有一組 MeSH 主題詞與標題／摘要關鍵字（見下方完整搜尋式），三者以 AND 結合：<i>次專科</i> AND <i>兒科</i> AND <i>文章類型</i>。</li>
       <li><b>收錄類型</b>：Journal Article、Review、Systematic Review、Meta-Analysis、Guideline、Practice Guideline、Consensus Development Conference。</li>
@@ -457,6 +474,38 @@ function nextUpdate() {
 $("next").textContent = nextUpdate();
 
 const md = d => d ? d.slice(5).replace("-", "/") : "";
+const ymd = d => d ? d.replace(/-/g, "/") : "";
+const RANGE_NAME = {7: "7 天", 30: "30 天", 365: "1 年", 730: "2 年"};
+let curRange = 7;
+function showData(d, note) {
+  state.data = d;
+  $("updated").textContent = d.updated;
+  $("span").textContent = curRange === 7 ? `${md(d.from)}–${md(d.to || d.week)}`
+                                         : `${ymd(d.from)}–${ymd(d.to)}（${RANGE_NAME[curRange]}）`;
+  $("past").className = "past" + (note ? " on" : "");
+  $("past").innerHTML = note || "";
+  try { buildFilters(); render(); showLogic(d); }
+  catch (e) { throw new Error("顯示時發生錯誤：" + (e && e.message)); }
+}
+function showRange(days) {
+  $("results").innerHTML = '<div class="empty">' + SLEEPY + `${RANGE_NAME[days]}資料載入中，請稍候…</div>`;
+  return getJSON(`range-${days}.json`).then(d => {
+    if (curRange !== days) return;
+    const partial = d.weeksIncluded < d.weeksExpected;
+    showData(d, partial ? `資料回補中：目前已累積 ${d.weeksIncluded} / ${d.weeksExpected} 週，完成後會自動補齊。` : "");
+  });
+}
+function setRange(days) {
+  curRange = days;
+  document.querySelectorAll("#ranges button").forEach(b => b.classList.toggle("on", +b.dataset.r === days));
+  $("week").classList.toggle("hide", days !== 7);
+  const p = days === 7 ? showWeek($("week").value) : showRange(days);
+  p.catch(err => days === 7 ? noData(err) : rangeMissing(days, err));
+}
+function rangeMissing(days, err) {
+  console.warn(err);
+  $("results").innerHTML = '<div class="empty">' + SLEEPY + `${RANGE_NAME[days]}的資料還在準備中（首次需回補過去資料，約 1–2 小時），請稍後再試。</div>`;
+}
 // 讀 JSON：加時間參數避開瀏覽器／CDN 快取，並回報清楚的錯誤
 function getJSON(file) {
   const url = file + (file.includes("?") ? "&" : "?") + "t=" + Date.now();
@@ -473,20 +522,13 @@ function showWeek(file) {
       console.warn(err); return getJSON("data.json");
     })
     .then(d => {
-      state.data = d;
-      $("updated").textContent = d.updated;
-      $("days").textContent = d.daysBack;
-      const latest = $("week").options[0].value;
-      const isPast = $("week").value !== latest && $("week").selectedIndex > 0;
-      $("past").className = "past" + (isPast ? " on" : "");
-      $("past").innerHTML = isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.to || d.week)}　<a id="back">回到本週 →</a>` : "";
-      if (isPast) $("back").onclick = () => { $("week").selectedIndex = 0; showWeek($("week").value); };
-      try { buildFilters(); render(); showLogic(d); }
-      catch (e) { throw new Error("顯示時發生錯誤：" + (e && e.message)); }
+      if (curRange !== 7) return;
+      const isPast = $("week").selectedIndex > 0;
+      showData(d, isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.to || d.week)}　<a id="back">回到本週 →</a>` : "");
+      if (isPast) $("back").onclick = () => { $("week").selectedIndex = 0; showWeek($("week").value).catch(noData); };
     });
 }
 function showLogic(d) {
-  document.querySelectorAll(".L-days").forEach(e => e.textContent = d.daysBack);
   const q = d.search; if (!q) return;
   document.querySelectorAll(".L-max").forEach(e => e.textContent = q.maxPerSpecialty);
   $("qlist").innerHTML =
@@ -514,6 +556,10 @@ getJSON("archive/index.json")
     return showWeek($("week").value);
   })
   .catch(noData);
+$("ranges").addEventListener("click", e => {
+  const b = e.target.closest("button[data-r]"); if (!b) return;
+  setRange(+b.dataset.r);
+});
 $("week").addEventListener("change", e => { window.scrollTo({top: 0, behavior: "smooth"}); showWeek(e.target.value).catch(noData); });
 $("all").onclick = () => setAll(true);
 $("none").onclick = () => setAll(false);
