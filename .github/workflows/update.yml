@@ -37,8 +37,11 @@ jobs:
         env:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          RUN_EVENT: ${{ github.event_name }}
           DAYS_BACK: "7"
-          MAX_PER_SPECIALTY: "40"
+          MAX_PER_SPECIALTY: "80"
+          POOL_PER_SPECIALTY: "1000"
         run: python scripts/fetch_pubmed.py
 
       - name: Commit data (keeps the repo active so the weekly schedule stays on)
@@ -69,4 +72,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
