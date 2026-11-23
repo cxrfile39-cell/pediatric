@@ -1,426 +1,524 @@
-#!/usr/bin/env python3
-"""Fetch the latest pediatric literature from PubMed, grouped by subspecialty.
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>兒科次專科最新文獻週報 | Pediatric Literature Weekly</title>
+<meta name="description" content="依兒科次專科分類，每週一自動更新 PubMed 最新 journal article、review 與 guideline。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --c1:#12355B;          /* 主色：深海軍藍 */
+    --c2:#E4572E;          /* 輔色：珊瑚橘 */
+    --c1-soft:#E6EDF6;
+    --c2-soft:#FDECE6;
+    --ink:#1B2430; --muted:#5B6675; --line:#D6DFEA; --bg:#FBF8F4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Huninn","Zen Maru Gothic","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+       color:var(--ink);line-height:1.6;
+       background:var(--bg) radial-gradient(circle,rgba(18,53,91,.07) 1.6px,transparent 1.8px) 0 0/22px 22px}
+  a{color:var(--c1)}
+  .wrap{max-width:1180px;margin:0 auto}
 
-Writes site/data.json (latest week), site/archive/YYYY-MM-DD.json and site/archive/index.json.
-Selection: for each subspecialty, all matches of the past DAYS_BACK days (up to POOL_PER_SPECIALTY)
-are ranked by journal impact (OpenAlex 2-year mean citedness, an open IF-equivalent metric),
-and the top MAX_PER_SPECIALTY are kept.
-Standard library only. Optional env vars: NCBI_API_KEY, NCBI_EMAIL, OPENALEX_API_KEY,
-DAYS_BACK, MAX_PER_SPECIALTY, POOL_PER_SPECIALTY.
-"""
-import json
-import os
-import re
-import sys
-import time
-import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ET
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
+  /* ---------- Header：夜空、雲朵、氣球、星星 ---------- */
+  header{position:relative;background:var(--c1);color:#fff;padding:34px 20px 70px;overflow:hidden}
+  header .deco{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .twinkle{animation:tw 2.4s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
+  .twinkle.d2{animation-delay:.8s}.twinkle.d3{animation-delay:1.6s}
+  @keyframes tw{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
+  .float{animation:fl 5s ease-in-out infinite;transform-box:fill-box}
+  @keyframes fl{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
+  header .wrap{position:relative;display:flex;gap:18px;align-items:center}
+  .mascot{flex:none;width:86px;height:86px;animation:bob 3s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-6px) rotate(6deg)}}
+  header h1{margin:0;font-size:clamp(1.45rem,3.4vw,2.2rem);letter-spacing:.04em;font-weight:700}
+  header h1 span{color:var(--c2);display:inline-block;background:#fff;padding:0 .4em;border-radius:14px;transform:rotate(-2deg);margin-left:.15em}
+  header p{margin:.5rem 0 0;opacity:.9;font-size:.95rem}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:14px;font-size:.86rem}
+  .meta>span{background:rgba(255,255,255,.12);border-radius:999px;padding:3px 12px}
+  .meta b{color:#fff;background:var(--c2);padding:1px 9px;border-radius:999px;font-weight:700}
+  .wave{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:46px;display:block}
+  .balloons{transform:translateX(110px)}
+  @media (max-width:1100px){.balloons{display:none}}
+  .meta b{white-space:nowrap}
+  .meta .maker{color:#fff;font-weight:700}
+  @media (max-width:600px){
+    .mascot{width:58px;height:58px}
+    header .wrap{align-items:flex-start}
+    header{padding:26px 16px 64px}
+    .meta{font-size:.8rem}
+    .list{max-height:300px;overflow:auto;padding-right:4px;border-bottom:2px dashed var(--c1-soft)}
+  }
 
-ROOT = Path(__file__).resolve().parent.parent
-EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
-API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
-EMAIL = os.environ.get("NCBI_EMAIL", "").strip()
-DAYS_BACK = int(os.environ.get("DAYS_BACK", "7"))
-MAX_PER = int(os.environ.get("MAX_PER_SPECIALTY", "80"))
-POOL = int(os.environ.get("POOL_PER_SPECIALTY", "1000"))
-OPENALEX = "https://api.openalex.org/sources"
-OPENALEX_KEY = os.environ.get("OPENALEX_API_KEY", "").strip()
-DELAY = 0.12 if API_KEY else 0.4
+  /* ---------- 版面 ---------- */
+  main{display:grid;grid-template-columns:300px 1fr;gap:24px;padding:18px 20px 40px}
+  @media (max-width:860px){main{grid-template-columns:1fr}}
+  aside{background:#fff;border:2.5px dashed var(--c1);border-radius:24px;padding:18px;align-self:start;position:sticky;top:12px;
+        max-height:calc(100vh - 24px);overflow:auto;box-shadow:6px 6px 0 var(--c2-soft)}
+  @media (max-width:860px){aside{position:static;max-height:none}}
+  aside h2{font-size:1rem;margin:0 0 10px;color:var(--c1);display:flex;align-items:center;gap:6px}
+  aside h2 svg{width:20px;height:20px}
 
-PEDS = ('("Child"[Mesh] OR "Infant"[Mesh] OR "Adolescent"[Mesh] OR "Pediatrics"[Mesh] '
-        'OR pediatric*[tiab] OR paediatric*[tiab] OR child*[tiab] OR infant*[tiab] '
-        'OR neonat*[tiab] OR newborn*[tiab] OR adolescen*[tiab])')
+  /* 貼紙風按鈕 */
+  .btns{display:flex;gap:10px;margin-bottom:12px}
+  button{font:inherit;cursor:pointer;border-radius:999px;padding:6px 16px;border:2.5px solid var(--c1);background:#fff;color:var(--c1);
+         font-weight:700;font-size:.9rem;box-shadow:0 4px 0 var(--c1);transition:transform .1s,box-shadow .1s}
+  button.primary{background:var(--c2);border-color:var(--c1);color:#fff}
+  button:hover{transform:translateY(-2px);box-shadow:0 6px 0 var(--c1)}
+  button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--c1)}
 
-TYPES = ('("Journal Article"[pt] OR "Review"[pt] OR "Systematic Review"[pt] OR "Meta-Analysis"[pt] '
-         'OR "Guideline"[pt] OR "Practice Guideline"[pt] OR "Consensus Development Conference"[pt]) '
-         'NOT ("Comment"[pt] OR "Editorial"[pt] OR "Letter"[pt] OR "Erratum"[pt] OR "Case Reports"[pt] '
-         'OR "Published Erratum"[pt] OR "Retracted Publication"[pt] OR "Preprint"[pt]) '
-         'AND hasabstract AND english[la]')
+  /* 圓圓的勾選框 */
+  .list label{display:flex;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:14px;font-size:.88rem;cursor:pointer;transition:background .15s}
+  .list label:hover{background:var(--c2-soft)}
+  .list input{-webkit-appearance:none;appearance:none;flex:none;width:19px;height:19px;margin:2px 0 0;border:2.5px solid var(--c1);border-radius:7px;background:#fff;
+              display:grid;place-content:center;cursor:pointer;transition:transform .15s}
+  .list input:checked{background:var(--c2);border-color:var(--c2);transform:rotate(-8deg)}
+  .list input:checked::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+  .list .n{margin-left:auto;flex:none;min-width:26px;text-align:center;color:var(--c1);background:var(--c1-soft);
+           border-radius:999px;font-size:.76rem;padding:0 7px;font-variant-numeric:tabular-nums}
 
-SPECIALTIES = [
-    ("Adolescent Medicine",
-     '("Adolescent Medicine"[Mesh] OR "Adolescent Health"[Mesh] OR "adolescent medicine"[tiab] OR '
-     '"adolescent health"[tiab] OR ((contracepti*[tiab] OR "eating disorder*"[tiab] OR "anorexia nervosa"[tiab] '
-     'OR "risk behavio*"[tiab] OR "substance use"[tiab] OR vaping[tiab]) AND adolescen*[tiab]))'),
-    ("Pediatric Allergy and Immunology",
-     '("Hypersensitivity"[Mesh] OR "Food Hypersensitivity"[Mesh] OR "Immunologic Deficiency Syndromes"[Mesh] '
-     'OR allerg*[tiab] OR anaphyla*[tiab] OR "atopic dermatitis"[tiab] OR "inborn errors of immunity"[tiab] '
-     'OR immunodeficienc*[tiab] OR "oral immunotherapy"[tiab])'),
-    ("Pediatric Cardiology",
-     '("Heart Defects, Congenital"[Mesh] OR "Heart Diseases"[Mesh] OR "congenital heart"[tiab] OR '
-     'cardiomyopath*[tiab] OR arrhythmi*[tiab] OR "Kawasaki"[tiab] OR myocarditis[tiab] OR "Fontan"[tiab] '
-     'OR "pulmonary hypertension"[tiab])'),
-    ("Child Abuse Pediatrics",
-     '("Child Abuse"[Mesh] OR "child abuse"[tiab] OR "child maltreatment"[tiab] OR "abusive head trauma"[tiab] '
-     'OR "child neglect"[tiab] OR "child sexual abuse"[tiab] OR "non-accidental"[tiab] OR "nonaccidental"[tiab] '
-     'OR "physical abuse"[tiab] OR "sentinel injur*"[tiab])'),
-    ("Pediatric Critical Care Medicine",
-     '("Intensive Care Units, Pediatric"[Mesh] OR "Critical Care"[Mesh] OR "PICU"[tiab] OR '
-     '"pediatric intensive care"[tiab] OR "paediatric intensive care"[tiab] OR "critically ill"[tiab] OR '
-     '"septic shock"[tiab] OR "mechanical ventilation"[tiab] OR ECMO[tiab] OR "Phoenix sepsis"[tiab])'),
-    ("Developmental-Behavioral Pediatrics",
-     '("Neurodevelopmental Disorders"[Mesh] OR "Autism Spectrum Disorder"[Mesh] OR '
-     '"Attention Deficit Disorder with Hyperactivity"[Mesh] OR "Developmental Disabilities"[Mesh] OR '
-     'autism[tiab] OR ADHD[tiab] OR "developmental delay"[tiab] OR "neurodevelopment*"[tiab] OR '
-     '"learning disabilit*"[tiab] OR "developmental-behavioral"[tiab])'),
-    ("Pediatric Emergency Medicine",
-     '("Emergency Service, Hospital"[Mesh] OR "Emergency Medicine"[Mesh] OR "emergency department*"[tiab] '
-     'OR "pediatric emergency"[tiab] OR "paediatric emergency"[tiab] OR "PECARN"[tiab] OR triage[tiab] '
-     'OR resuscitation[tiab])'),
-    ("Pediatric Endocrinology",
-     '("Endocrine System Diseases"[Mesh] OR "Diabetes Mellitus, Type 1"[Mesh] OR "type 1 diabetes"[tiab] '
-     'OR "growth hormone"[tiab] OR "short stature"[tiab] OR thyroid*[tiab] OR "precocious puberty"[tiab] '
-     'OR "adrenal insufficiency"[tiab] OR "congenital adrenal hyperplasia"[tiab] OR "pediatric obesity"[tiab] '
-     'OR "childhood obesity"[tiab] OR "differences of sex development"[tiab])'),
-    ("Pediatric Gastroenterology",
-     '("Gastrointestinal Diseases"[Mesh] OR "Liver Diseases"[Mesh] OR "inflammatory bowel disease"[tiab] OR '
-     'Crohn*[tiab] OR "ulcerative colitis"[tiab] OR "celiac"[tiab] OR "eosinophilic esophagitis"[tiab] OR '
-     '"biliary atresia"[tiab] OR hepatolog*[tiab] OR "gastroesophageal reflux"[tiab] OR constipation[tiab] '
-     'OR "MASLD"[tiab] OR "NAFLD"[tiab])'),
-    ("Pediatric Hematology and Oncology",
-     '("Neoplasms"[Mesh] OR "Hematologic Diseases"[Mesh] OR leukemi*[tiab] OR lymphoma*[tiab] OR '
-     'neuroblastoma[tiab] OR "brain tumo*"[tiab] OR sarcoma*[tiab] OR "Wilms"[tiab] OR "sickle cell"[tiab] '
-     'OR thalassemi*[tiab] OR hemophilia[tiab] OR "immune thrombocytopeni*"[tiab] OR "CAR-T"[tiab] OR '
-     '"childhood cancer"[tiab])'),
-    ("Pediatric Hospital Medicine",
-     '("Hospitalists"[Mesh] OR "Hospitals, Pediatric"[Mesh] OR "hospital medicine"[tiab] OR '
-     'hospitalist*[tiab] OR "hospitalized child*"[tiab] OR "length of stay"[tiab] OR bronchiolitis[tiab] '
-     'OR "febrile infant*"[tiab] OR "readmission*"[tiab] OR "inpatient"[tiab])'),
-    ("Pediatric Infectious Diseases",
-     '("Infections"[Mesh] OR "Communicable Diseases"[Mesh] OR "Vaccines"[Mesh] OR infection*[tiab] OR '
-     'vaccin*[tiab] OR sepsis[tiab] OR antimicrobial*[tiab] OR antibiotic*[tiab] OR "RSV"[tiab] OR '
-     'influenza[tiab] OR "COVID-19"[tiab] OR "Mycoplasma"[tiab] OR "pertussis"[tiab] OR measles[tiab])'),
-    ("Neonatal-Perinatal Medicine (Neonatology)",
-     '("Infant, Newborn"[Mesh] OR "Intensive Care Units, Neonatal"[Mesh] OR "Infant, Premature"[Mesh] OR '
-     'neonat*[tiab] OR preterm[tiab] OR NICU[tiab] OR "bronchopulmonary dysplasia"[tiab] OR '
-     '"necrotizing enterocolitis"[tiab] OR "hypoxic-ischemic"[tiab] OR "very low birth weight"[tiab] OR '
-     'perinatal[tiab])'),
-    ("Pediatric Nephrology",
-     '("Kidney Diseases"[Mesh] OR "Urinary Tract Infections"[Mesh] OR nephro*[tiab] OR "kidney"[tiab] OR '
-     '"renal"[tiab] OR "acute kidney injury"[tiab] OR "chronic kidney disease"[tiab] OR "nephrotic syndrome"[tiab] '
-     'OR dialysis[tiab] OR "vesicoureteral reflux"[tiab] OR hypertension[tiab])'),
-    ("Pediatric Pulmonology",
-     '("Lung Diseases"[Mesh] OR "Respiratory Tract Diseases"[Mesh] OR asthma[tiab] OR "cystic fibrosis"[tiab] '
-     'OR "lung function"[tiab] OR pulmonar*[tiab] OR "interstitial lung"[tiab] OR "primary ciliary dyskinesia"[tiab] '
-     'OR "chronic cough"[tiab] OR bronchiectasis[tiab] OR spirometry[tiab])'),
-    ("Pediatric Rheumatology",
-     '("Rheumatic Diseases"[Mesh] OR "Arthritis, Juvenile"[Mesh] OR "juvenile idiopathic arthritis"[tiab] OR '
-     '"lupus"[tiab] OR "SLE"[tiab] OR vasculitis[tiab] OR "juvenile dermatomyositis"[tiab] OR "MIS-C"[tiab] '
-     'OR autoinflammat*[tiab] OR "Kawasaki disease"[tiab] OR "macrophage activation syndrome"[tiab] OR uveitis[tiab])'),
-    ("Pediatric Neurology",
-     '("Nervous System Diseases"[Mesh] OR epilep*[tiab] OR seizure*[tiab] OR "cerebral palsy"[tiab] OR '
-     'migraine*[tiab] OR headache*[tiab] OR "spinal muscular atrophy"[tiab] OR "muscular dystrophy"[tiab] '
-     'OR "pediatric stroke"[tiab] OR encephalitis[tiab] OR "neuromuscular"[tiab] OR concussion[tiab])'),
-    ("Pediatric Dermatology",
-     '("Skin Diseases"[Mesh] OR dermatolog*[tiab] OR "atopic dermatitis"[tiab] OR eczema[tiab] OR '
-     'psoriasis[tiab] OR "infantile hemangioma*"[tiab] OR "vascular malformation*"[tiab] OR acne[tiab] '
-     'OR "epidermolysis bullosa"[tiab] OR "alopecia areata"[tiab] OR vitiligo[tiab])'),
-    ("Pediatric Genetics and Metabolism",
-     '("Genetic Diseases, Inborn"[Mesh] OR "Metabolism, Inborn Errors"[Mesh] OR "inborn error*"[tiab] OR '
-     '"genetic testing"[tiab] OR "exome sequencing"[tiab] OR "genome sequencing"[tiab] OR "newborn screening"[tiab] '
-     'OR "rare disease*"[tiab] OR "gene therapy"[tiab] OR syndrom*[tiab] OR "metabolic disorder*"[tiab])'),
-    ("Pediatric Rehabilitation Medicine",
-     '("Rehabilitation"[Mesh] OR "Physical Therapy Modalities"[Mesh] OR rehabilitat*[tiab] OR '
-     '"physical therapy"[tiab] OR physiotherap*[tiab] OR "occupational therapy"[tiab] OR "spinal cord injur*"[tiab] '
-     'OR "brain injur*"[tiab] OR "cerebral palsy"[tiab] OR "spasticity"[tiab] OR "motor function"[tiab])'),
-    ("Pediatric Sleep Medicine",
-     '("Sleep Wake Disorders"[Mesh] OR "Sleep"[Mesh] OR sleep*[tiab] OR "obstructive sleep apnea"[tiab] OR '
-     'insomnia[tiab] OR narcolepsy[tiab] OR polysomnograph*[tiab] OR "restless legs"[tiab] OR melatonin[tiab])'),
-    ("Pediatric Palliative Care",
-     '("Palliative Care"[Mesh] OR "Terminal Care"[Mesh] OR "Hospice Care"[Mesh] OR palliative[tiab] OR '
-     '"end-of-life"[tiab] OR "end of life"[tiab] OR hospice[tiab] OR bereavement[tiab] OR '
-     '"advance care planning"[tiab] OR "life-limiting"[tiab] OR "goals of care"[tiab])'),
-]
+  .types{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 18px}
+  .types label{border:2.5px solid var(--c1);border-radius:999px;padding:3px 12px;font-size:.84rem;cursor:pointer;user-select:none;
+               color:var(--c1);background:#fff;transition:transform .15s}
+  .types label:hover{transform:rotate(-3deg) scale(1.05)}
+  .types input{display:none}
+  .types label.on{background:var(--c1);color:#fff}
 
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  .search{flex:1;min-width:200px;position:relative}
+  .search svg{position:absolute;left:14px;top:50%;width:20px;height:20px;transform:translateY(-50%)}
+  .search input{width:100%;padding:11px 14px 11px 44px;border:2.5px solid var(--c1);border-radius:999px;font:inherit;background:#fff}
+  .search input:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 4px var(--c2-soft)}
+  #week{border-color:var(--c2);color:var(--c2);font-weight:700}
+  .past{display:none;margin:0 0 12px;padding:8px 14px;border-radius:16px;background:var(--c2-soft);color:var(--c1);font-size:.88rem}
+  .past.on{display:block}
+  .past a{color:var(--c2);font-weight:700;cursor:pointer}
+  select{font:inherit;padding:9px 14px;border:2.5px solid var(--c1);border-radius:999px;background:#fff;color:var(--c1)}
+  .count{color:var(--muted);font-size:.92rem;margin:0 0 12px 6px}
+  .count b{color:#fff;background:var(--c2);border-radius:999px;padding:0 9px}
 
-def eutils(endpoint, params, retries=4):
-    params = dict(params, tool="peds-lit-weekly", db="pubmed")
-    if API_KEY:
-        params["api_key"] = API_KEY
-    if EMAIL:
-        params["email"] = EMAIL
-    data = urllib.parse.urlencode(params).encode()
-    for attempt in range(retries):
-        try:
-            time.sleep(DELAY)
-            req = urllib.request.Request(EUTILS + endpoint, data=data,
-                                         headers={"User-Agent": "peds-lit-weekly/1.0"})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                return r.read()
-        except Exception as e:  # noqa: BLE001
-            wait = 2 ** attempt * 2
-            print(f"  ! {endpoint} failed ({e}); retry in {wait}s", file=sys.stderr)
-            time.sleep(wait)
-    raise RuntimeError(f"E-utilities {endpoint} failed after {retries} attempts")
+  /* 卡片 */
+  article.card{position:relative;background:#fff;border:2.5px solid var(--c1);border-radius:22px;padding:16px 18px 14px 20px;margin-bottom:16px;
+               box-shadow:0 5px 0 var(--c1-soft);transition:transform .2s,box-shadow .2s}
+  article.card:hover{transform:translateY(-3px) rotate(-.3deg);box-shadow:0 9px 0 var(--c2-soft)}
+  article.card::before{content:"";position:absolute;top:-9px;right:26px;width:46px;height:16px;border-radius:4px;
+                       background:var(--c2-soft);border:1.5px dashed var(--c2);transform:rotate(4deg)}
+  article.card.Guideline,article.card.Meta{border-color:var(--c2)}
+  article.card.Guideline::before{background:var(--c1-soft);border-color:var(--c1)}
+  .card h3{margin:0 0 6px;font-size:1.04rem;line-height:1.45}
+  .card h3 a{text-decoration:none;color:var(--ink)}
+  .card h3 a:hover{color:var(--c2)}
+  .sub{font-size:.85rem;color:var(--muted)}
+  .sub .if{display:inline-block;background:var(--c2);color:#fff;font-weight:700;border-radius:999px;padding:0 8px;font-size:.76rem;margin-right:2px}
+  .sub i{color:var(--c1);font-style:normal;font-weight:700}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .tag{font-size:.75rem;padding:2px 10px;border-radius:999px;background:var(--c1-soft);color:var(--c1)}
+  .tag.type{background:var(--c1);color:#fff;font-weight:700}
+  .tag.type.Guideline{background:var(--c2)}
+  .tag.type.Review{background:#fff;color:var(--c1);border:2px solid var(--c1)}
+  .tag.type.Meta{background:#fff;color:var(--c2);border:2px solid var(--c2)}
 
+  /* 四大區塊 */
+  .sec{margin-bottom:22px}
+  .sec-h{width:100%;display:flex;align-items:center;gap:10px;text-align:left;padding:12px 18px;border-radius:20px;
+         background:var(--c1);border:2.5px solid var(--c1);color:#fff;font-size:1.05rem;box-shadow:0 5px 0 var(--c2-soft)}
+  .sec:nth-of-type(even) .sec-h{background:var(--c2);border-color:var(--c2)}
+  .sec-h:hover{color:#fff;transform:translateY(-2px);box-shadow:0 7px 0 var(--c2-soft)}
+  .sec-h:active{transform:translateY(2px);box-shadow:0 2px 0 var(--c2-soft)}
+  .sec-h .ico{width:30px;height:30px;flex:none;border-radius:50%;background:#fff;display:grid;place-content:center}
+  .sec-h .ico svg{width:18px;height:18px}
+  .sec-h .zh{font-size:.82rem;opacity:.85;font-weight:500}
+  .sec-h .num{margin-left:auto;background:#fff;color:var(--c1);border-radius:999px;padding:1px 12px;font-size:.9rem}
+  .sec:nth-of-type(even) .sec-h .num{color:var(--c2)}
+  .sec-h .chev{width:22px;height:22px;flex:none;transition:transform .25s}
+  .sec.open .sec-h .chev{transform:rotate(180deg)}
+  .sec-b{padding:16px 4px 0}
+  .more{display:block;margin:2px auto 0;background:#fff}
+  .sec-empty{color:var(--muted);text-align:center;padding:8px 0 4px;font-size:.9rem}
+  details{margin-top:10px;font-size:.9rem}
+  summary{cursor:pointer;color:var(--c2);font-weight:700;list-style:none;display:inline-flex;align-items:center;gap:6px}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"+";display:grid;place-content:center;width:20px;height:20px;border-radius:50%;background:var(--c2);color:#fff;font-size:.9rem;line-height:1}
+  details[open] > summary::before{content:"–"}
+  details p{white-space:pre-line;margin:.6rem 0 0;padding:12px 14px;background:var(--bg);border-radius:14px;color:#2F3A47}
+  .links{margin-top:10px;font-size:.84rem;display:flex;gap:10px;flex-wrap:wrap}
+  .links a{text-decoration:none;border:2px solid var(--c1);border-radius:999px;padding:1px 11px;font-weight:700}
+  .links a:hover{background:var(--c1);color:#fff}
+  .empty{background:#fff;border:2.5px dashed var(--c1);border-radius:24px;padding:30px;text-align:center;color:var(--muted)}
+  .empty svg{width:110px;height:110px;display:block;margin:0 auto 8px}
 
-def search(term):
-    raw = eutils("esearch.fcgi", {"term": term, "retmode": "json", "retmax": POOL,
-                                  "sort": "pub_date", "datetype": "edat", "reldate": DAYS_BACK})
-    res = json.loads(raw)["esearchresult"]
-    return res.get("idlist", []), int(res.get("count", 0))
+  /* ---------- Footer：積木 ---------- */
+  /* 搜尋邏輯 */
+  .logic{background:#fff;border:2.5px dashed var(--c1);border-radius:24px;padding:20px 22px;margin:10px auto 30px;font-size:.9rem}
+  .logic h2{margin:0 0 10px;color:var(--c1);font-size:1.1rem;display:flex;align-items:center;gap:8px}
+  .logic h2 svg{width:22px;height:22px}
+  .logic ol{margin:0;padding-left:1.3em}
+  .logic li{margin:.35em 0}
+  .logic li::marker{color:var(--c2);font-weight:700}
+  .logic b{color:var(--c1)}
+  .logic table{border-collapse:collapse;margin:6px 0;font-size:.85rem}
+  .logic td{padding:3px 10px 3px 0;vertical-align:top}
+  .logic td:first-child{white-space:nowrap;color:var(--c2);font-weight:700}
+  @media (max-width:600px){.logic tr,.logic td{display:block}.logic td{padding:0}.logic td:first-child{margin-top:8px}}
+  .logic details{margin-top:10px}
+  .logic details details{margin:6px 0 0 6px}
+  .logic summary{color:var(--c1)}
+  .logic summary::before{background:var(--c1)}
+  .logic details details summary{font-weight:500;font-size:.86rem}
+  .logic details details summary::before{width:16px;height:16px;font-size:.75rem}
+  .logic code{display:block;white-space:pre-wrap;word-break:break-word;background:var(--bg);border-radius:12px;padding:10px 12px;margin-top:6px;
+              font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.76rem;color:#2F3A47}
+  footer{position:relative;background:var(--c1);color:#fff;text-align:center;padding:64px 20px 26px;font-size:.9rem;margin-top:20px}
+  footer .wave{top:-1px;bottom:auto;transform:rotate(180deg)}
+  .blocks{display:flex;justify-content:center;gap:6px;margin-bottom:12px}
+  .blocks span{width:34px;height:34px;display:grid;place-content:center;border-radius:8px;font-weight:700;font-size:1.05rem;
+               background:var(--c2);color:#fff;box-shadow:inset 0 -4px 0 rgba(0,0,0,.15);animation:hop 2.6s ease-in-out infinite}
+  .blocks span:nth-child(even){background:#fff;color:var(--c1)}
+  .blocks span:nth-child(2){animation-delay:.15s}.blocks span:nth-child(3){animation-delay:.3s}
+  .blocks span:nth-child(4){animation-delay:.45s}.blocks span:nth-child(5){animation-delay:.6s}
+  @keyframes hop{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px) rotate(-6deg)}}
+  footer strong{color:#fff;font-weight:700}
+  footer small{display:block;opacity:.75;margin-top:10px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <svg class="deco" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="#fff" opacity=".12">
+      <path d="M90 90a26 26 0 0 1 50-10 20 20 0 0 1 32 16 16 16 0 0 1-2 32H96a22 22 0 0 1-6-38z"/>
+      <path d="M760 50a30 30 0 0 1 58-12 24 24 0 0 1 38 20 18 18 0 0 1-2 36H766a26 26 0 0 1-6-44z"/>
+    </g>
+    <g fill="#fff">
+      <path class="twinkle" d="M300 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/>
+      <path class="twinkle d2" d="M640 120l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+      <path class="twinkle d3" d="M1120 60l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/>
+      <circle class="twinkle d2" cx="480" cy="30" r="3"/><circle class="twinkle" cx="980" cy="160" r="3"/>
+      <circle class="twinkle d3" cx="200" cy="190" r="2.5"/>
+    </g>
+    <g class="balloons"><g class="float">
+      <path d="M1040 230 q-8 30 6 60" stroke="#fff" stroke-width="2" fill="none" opacity=".6"/>
+      <ellipse cx="1040" cy="190" rx="30" ry="38" fill="#E4572E"/>
+      <ellipse cx="1030" cy="176" rx="7" ry="11" fill="#fff" opacity=".45"/>
+      <path d="M1034 227h12l-6 8z" fill="#E4572E"/>
+    </g>
+    <g class="float" style="animation-delay:-2s">
+      <path d="M1110 210 q6 30 -4 70" stroke="#fff" stroke-width="2" fill="none" opacity=".6"/>
+      <ellipse cx="1110" cy="178" rx="22" ry="28" fill="#fff"/>
+      <ellipse cx="1103" cy="168" rx="5" ry="8" fill="#12355B" opacity=".15"/>
+      <path d="M1105 205h10l-5 7z" fill="#fff"/>
+    </g></g>
+  </svg>
+  <div class="wrap">
+    <!-- 吉祥物：小星星醫師 -->
+    <svg class="mascot" viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M50 6l12.6 26.4 28.9 3.6-21.2 20 5.4 28.6L50 70.6 24.3 84.6l5.4-28.6-21.2-20 28.9-3.6z"
+            fill="#E4572E" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+      <circle cx="41" cy="46" r="4" fill="#12355B"/><circle cx="59" cy="46" r="4" fill="#12355B"/>
+      <circle cx="42.3" cy="44.6" r="1.3" fill="#fff"/><circle cx="60.3" cy="44.6" r="1.3" fill="#fff"/>
+      <ellipse cx="34" cy="55" rx="5" ry="3" fill="#fff" opacity=".45"/><ellipse cx="66" cy="55" rx="5" ry="3" fill="#fff" opacity=".45"/>
+      <path d="M44 55q6 6 12 0" stroke="#12355B" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- 聽診器 -->
+      <path d="M36 66q14 14 28 0" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="50" cy="75" r="4.5" fill="#12355B" stroke="#fff" stroke-width="2.5"/>
+    </svg>
+    <div>
+      <h1>兒科次專科<span>最新文獻週報</span></h1>
+      <p>Pediatric Subspecialty Literature Weekly — 收錄 PubMed 最新 Journal Article / Review / Guideline</p>
+      <div class="meta">
+        <span>更新時間 <b id="updated">載入中…</b></span>
+        <span>下次更新 <b id="next">計算中…</b></span>
+        <span>收錄範圍：近 <span id="days">7</span> 天</span>
+        <span>製作者 <strong class="maker">JH CHIU MD × Claude 5.5</strong></span>
+      </div>
+    </div>
+  </div>
+  <svg class="wave" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 26 Q75 0 150 26 T300 26 T450 26 T600 26 T750 26 T900 26 T1050 26 T1200 26 V46 H0z" fill="#E4572E"/>
+    <path d="M0 34 Q75 10 150 34 T300 34 T450 34 T600 34 T750 34 T900 34 T1050 34 T1200 34 V46 H0z" fill="#FBF8F4"/>
+  </svg>
+</header>
 
+<main class="wrap">
+  <aside>
+    <h2><svg viewBox="0 0 24 24"><path d="M12 2l3 6.5 7 .9-5.1 4.9 1.3 7L12 17.8 5.8 21.3l1.3-7L2 9.4l7-.9z" fill="#E4572E"/></svg>文章類型</h2>
+    <div class="types" id="types"></div>
+    <h2><svg viewBox="0 0 24 24"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z" fill="#E4572E"/></svg>次專科</h2>
+    <div class="btns">
+      <button class="primary" id="all">全選</button>
+      <button id="none">全不選</button>
+    </div>
+    <div class="list" id="specs"></div>
+  </aside>
 
-def summaries(pmids):
-    """pmid -> {issns, journal, sortpubdate} via esummary (light-weight, for ranking)."""
-    out = {}
-    for i in range(0, len(pmids), 200):
-        chunk = pmids[i:i + 200]
-        res = json.loads(eutils("esummary.fcgi", {"id": ",".join(chunk), "retmode": "json"})).get("result", {})
-        for uid in res.get("uids", []):
-            r = res.get(uid, {})
-            out[uid] = {
-                "issns": [x for x in (r.get("issn", ""), r.get("essn", "")) if x],
-                "journal": r.get("fulljournalname", "") or r.get("source", ""),
-                "sortpubdate": r.get("sortpubdate", ""),
-            }
-    return out
+  <section>
+    <div class="toolbar">
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.8"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3.2" stroke-linecap="round"/></svg>
+        <input type="search" id="q" placeholder="搜尋標題、期刊、作者、摘要…" aria-label="搜尋">
+      </label>
+      <select id="week" aria-label="週次"><option value="data.json">本週</option></select>
+      <select id="sort">
+        <option value="if">依期刊影響力 IF</option>
+        <option value="date">依出版日期</option>
+        <option value="journal">依期刊名稱</option>
+      </select>
+    </div>
+    <div class="past" id="past"></div>
+    <div class="count" id="count"></div>
+    <div id="results"></div>
+  </section>
+</main>
 
+<section class="wrap" style="padding:0 20px">
+  <div class="logic" id="logic">
+    <h2><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#12355B" stroke-width="2.6"/><path d="M15.5 15.5l5 5" stroke="#E4572E" stroke-width="3" stroke-linecap="round"/></svg>搜尋邏輯說明</h2>
+    <ol>
+      <li><b>資料來源</b>：NCBI PubMed（E-utilities API），每週一 08:00（台灣時間）自動執行。</li>
+      <li><b>時間範圍</b>：PubMed 收錄日期（Entrez date）在執行前 <span class="L-days">7</span> 天內的文章。</li>
+      <li><b>兒科條件</b>：MeSH 為 Child、Infant、Adolescent、Pediatrics，或標題／摘要含 pediatric、paediatric、child、infant、neonat、newborn、adolescen 等字。</li>
+      <li><b>次專科條件</b>：每個次專科各有一組 MeSH 主題詞與標題／摘要關鍵字（見下方完整搜尋式），三者以 AND 結合：<i>次專科</i> AND <i>兒科</i> AND <i>文章類型</i>。</li>
+      <li><b>收錄類型</b>：Journal Article、Review、Systematic Review、Meta-Analysis、Guideline、Practice Guideline、Consensus Development Conference。</li>
+      <li><b>排除</b>：Comment、Editorial、Letter、Erratum、Case Reports、Retracted Publication、Preprint；並限定<b>有摘要</b>、<b>英文</b>。</li>
+      <li><b>依期刊影響力篩選</b>：每個次專科先取出 7 天內所有符合文章，依刊登期刊的影響力由高到低排序（同分時較新者優先），保留前 <span class="L-max">80</span> 篇；同一篇符合多個次專科時只列一次，並標上所有相關次專科。</li>
+      <li><b>IF 數值說明</b>：官方 Journal Impact Factor（Clarivate JCR）無公開免費資料，本站採用 OpenAlex 的「2-year mean citedness」（期刊前兩年文章的平均被引次數，計算方式與 IF 相同），顯示為「IF≈」，數值與官方 IF 相近但不完全相同；查無資料的期刊視為 0，排在最後。</li>
+      <li><b>四區分類</b>（依序判斷，符合即歸類）：
+        <table>
+          <tr><td>Consensus / Guideline</td><td>PubMed 類型含 Guideline 或 Consensus；或標題含 guideline、consensus statement、expert consensus、position statement 等</td></tr>
+          <tr><td>Meta-analysis</td><td>類型為 Meta-Analysis、Systematic Review；或標題含 meta-analysis、systematic review、umbrella review</td></tr>
+          <tr><td>Review</td><td>類型為 Review；或標題含 narrative / scoping / literature review</td></tr>
+          <tr><td>Original</td><td>其餘所有文章</td></tr>
+        </table>
+      </li>
+      <li><b>限制</b>：關鍵字搜尋可能收錄部分非兒科為主的研究，或漏收未使用上述字詞的文章；新收錄文章常尚未完成 MeSH 標引，因此同時使用標題／摘要關鍵字。</li>
+    </ol>
+    <details id="queries"><summary>查看完整 PubMed 搜尋式</summary><div id="qlist"><p>資料更新後即會顯示。</p></div></details>
+  </div>
+</section>
 
-def journal_impact(issns):
-    """ISSN -> OpenAlex 2-year mean citedness (open IF-equivalent). Missing journals are absent."""
-    result = {}
-    issns = sorted(set(issns))
-    for i in range(0, len(issns), 50):
-        chunk = issns[i:i + 50]
-        params = {"filter": "issn:" + "|".join(chunk), "per_page": 200,
-                  "select": "issn,display_name,summary_stats"}
-        if EMAIL:
-            params["mailto"] = EMAIL
-        if OPENALEX_KEY:
-            params["api_key"] = OPENALEX_KEY
-        url = OPENALEX + "?" + urllib.parse.urlencode(params)
-        for attempt in range(4):
-            try:
-                time.sleep(0.15)
-                req = urllib.request.Request(url, headers={"User-Agent": "peds-lit-weekly/1.0"})
-                with urllib.request.urlopen(req, timeout=60) as r:
-                    data = json.loads(r.read())
-                break
-            except Exception as e:  # noqa: BLE001
-                print(f"  ! OpenAlex failed ({e}); retry", file=sys.stderr)
-                time.sleep(2 ** attempt * 2)
-        else:
-            continue
-        for src in data.get("results", []):
-            v = (src.get("summary_stats") or {}).get("2yr_mean_citedness")
-            if v is None:
-                continue
-            for x in src.get("issn") or []:
-                result[x] = max(result.get(x, 0), round(float(v), 2))
-    return result
+<footer>
+  <svg class="wave" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 26 Q75 0 150 26 T300 26 T450 26 T600 26 T750 26 T900 26 T1050 26 T1200 26 V46 H0z" fill="#E4572E"/>
+    <path d="M0 34 Q75 10 150 34 T300 34 T450 34 T600 34 T750 34 T900 34 T1050 34 T1200 34 V46 H0z" fill="#FBF8F4"/>
+  </svg>
+  <div class="blocks" aria-hidden="true"><span>P</span><span>E</span><span>D</span><span>S</span><span>★</span></div>
+  製作者 <strong>JH CHIU MD</strong> · 協作 <strong>Claude 5.5</strong>
+  <small>資料來源：NCBI PubMed E-utilities。本頁僅供學術參考，臨床決策請以原文及專業判斷為準。</small>
+</footer>
 
+<script>
+const SLEEPY = '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 6l12.6 26.4 28.9 3.6-21.2 20 5.4 28.6L50 70.6 24.3 84.6l5.4-28.6-21.2-20 28.9-3.6z" fill="#E4572E" stroke="#12355B" stroke-width="3" stroke-linejoin="round"/><path d="M37 47q4 4 8 0M55 47q4 4 8 0" stroke="#12355B" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="50" cy="58" r="3.5" fill="#12355B"/><text x="74" y="20" font-size="14" fill="#12355B" font-weight="700">z z</text></svg>';
+const TYPES = ["Original", "Review", "Meta", "Guideline"];
+const TYPE_LABEL = {Original: "Original", Review: "Review", Meta: "Meta-analysis", Guideline: "Consensus / Guideline"};
+const TYPE_ZH = {Original: "原著論文", Review: "綜論", Meta: "系統性回顧與統合分析", Guideline: "共識與指引"};
+const TYPE_ICON = {
+  Original: '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z" fill="none" stroke="#12355B" stroke-width="2.4" stroke-linejoin="round"/><path d="M9 12h7M9 16h5" stroke="#E4572E" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  Review: '<svg viewBox="0 0 24 24"><path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z" fill="none" stroke="#12355B" stroke-width="2.2" stroke-linejoin="round"/></svg>',
+  Meta: '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" stroke="#E4572E" stroke-width="2.6" stroke-linecap="round"/></svg>',
+  Guideline: '<svg viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3 9-7 11-4-2-7-6-7-11V5z" fill="none" stroke="#E4572E" stroke-width="2.4" stroke-linejoin="round"/><path d="M8.5 12l2.5 2.5 4.5-5" stroke="#12355B" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>'};
+const CHEV = '<svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const PREVIEW = 3;   // 每區預設顯示篇數
+const state = {data: null, specs: new Set(), types: new Set(TYPES), q: "", sort: "if", open: new Set()};
 
-def text(el):
-    return "".join(el.itertext()).strip() if el is not None else ""
+// 依 PubMed publication type（及標題關鍵字）分四類；舊存檔也適用
+function classify(a) {
+  const pt = (a.pubTypes || []).map(p => p.toLowerCase());
+  const t = (a.title || "").toLowerCase();
+  if (pt.some(p => p.includes("guideline") || p.includes("consensus")) ||
+      /\b(guidelines?|consensus statement|consensus recommendations?|expert consensus|position statement|position paper|clinical practice recommendations?)\b/.test(t))
+    return "Guideline";
+  if (pt.includes("meta-analysis") || pt.includes("systematic review") || pt.includes("network meta-analysis") ||
+      /meta-analys|systematic review|umbrella review/.test(t))
+    return "Meta";
+  if (pt.includes("review") || /\b(narrative|scoping|literature|state-of-the-art) review\b/.test(t))
+    return "Review";
+  return "Original";
+}
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+function load() {
+  try { const s = JSON.parse(localStorage.getItem("pedslit") || "null");
+        if (s) { state.savedSpecs = s.specs;
+                 const ty = (s.types || []).filter(t => TYPES.includes(t));
+                 if (ty.length) state.types = new Set(ty); } } catch (e) {}
+}
+function save() {
+  try { localStorage.setItem("pedslit", JSON.stringify({specs: [...state.specs], types: [...state.types]})); } catch (e) {}
+}
 
-MONTHS = {m: i for i, m in enumerate(
-    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+function buildFilters() {
+  const d = state.data;
+  d.articles.forEach(a => a.cat = classify(a));
+  const perSpec = {};
+  d.articles.forEach(a => a.specialties.forEach(s => perSpec[s] = (perSpec[s] || 0) + 1));
+  const known = new Set(d.specialties);
+  if (!state.inited) state.specs = new Set(state.savedSpecs ? state.savedSpecs.filter(s => known.has(s)) : d.specialties);
+  $("specs").innerHTML = d.specialties.map((s, i) => `
+    <label><input type="checkbox" data-spec="${esc(s)}" ${state.specs.has(s) ? "checked" : ""}>
+      <span>${esc(s)}</span><span class="n">${perSpec[s] || 0}</span></label>`).join("");
+  if (state.inited) return;
+  state.inited = true;
+  $("types").innerHTML = TYPES.map(t => `
+    <label class="${state.types.has(t) ? "on" : ""}"><input type="checkbox" data-type="${t}" ${state.types.has(t) ? "checked" : ""}>${TYPE_LABEL[t]}</label>`).join("");
+  $("specs").addEventListener("change", e => {
+    const s = e.target.dataset.spec; if (!s) return;
+    e.target.checked ? state.specs.add(s) : state.specs.delete(s); save(); render();
+  });
+  $("types").addEventListener("change", e => {
+    const t = e.target.dataset.type; if (!t) return;
+    e.target.checked ? state.types.add(t) : state.types.delete(t);
+    e.target.parentElement.classList.toggle("on", e.target.checked); save(); render();
+  });
+}
 
+function setAll(on) {
+  if (!state.data) return;
+  state.specs = new Set(on ? state.data.specialties : []);
+  document.querySelectorAll("#specs input").forEach(i => i.checked = on);
+  save(); render();
+}
 
-def pub_date(art):
-    """Return (display string, sortable ISO date)."""
-    for path in ("Journal/JournalIssue/PubDate", "ArticleDate"):
-        d = art.find(path)
-        if d is None:
-            continue
-        y = d.findtext("Year")
-        if not y:
-            md = d.findtext("MedlineDate") or ""
-            if md[:4].isdigit():
-                return md, f"{md[:4]}-01-01"
-            continue
-        m = d.findtext("Month") or "1"
-        m = int(m) if m.isdigit() else MONTHS.get(m[:3].lower(), 1)
-        day = d.findtext("Day") or "1"
-        day = int(day) if day.isdigit() else 1
-        return f"{y}-{m:02d}" + (f"-{day:02d}" if d.findtext("Day") else ""), f"{y}-{m:02d}-{day:02d}"
-    return "", ""
+function card(a) {
+  return `
+    <article class="card ${a.cat}">
+      <h3><a href="https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/" target="_blank" rel="noopener">${esc(a.title)}</a></h3>
+      <div class="sub">${a.if ? `<span class="if" title="期刊影響力（OpenAlex 2-year mean citedness）">IF≈${a.if.toFixed(1)}</span> ` : ""}<i>${esc(a.journal)}</i> · ${esc(a.date)} · ${esc(a.authors.join(", "))}</div>
+      <div class="tags">
+        <span class="tag type ${a.cat}">${TYPE_LABEL[a.cat]}</span>
+        ${a.specialties.map(s => `<span class="tag">${esc(s)}</span>`).join("")}
+      </div>
+      ${a.abstract ? `<details><summary>摘要 Abstract</summary><p>${esc(a.abstract)}</p></details>` : ""}
+      <div class="links">
+        <a href="https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/" target="_blank" rel="noopener">PubMed ${a.pmid}</a>
+        ${a.doi ? `<a href="https://doi.org/${esc(a.doi)}" target="_blank" rel="noopener">全文 DOI</a>` : ""}
+      </div>
+    </article>`;
+}
 
+function render() {
+  const q = state.q.trim().toLowerCase();
+  let list = state.data.articles.filter(a =>
+    state.types.has(a.cat) &&
+    a.specialties.some(s => state.specs.has(s)) &&
+    (!q || [a.title, a.journal, a.abstract, a.authors.join(" ")].join(" ").toLowerCase().includes(q)));
+  const byDate = (a, b) => (b.sortDate || "").localeCompare(a.sortDate || "");
+  if (state.sort === "journal") list = [...list].sort((a, b) => a.journal.localeCompare(b.journal) || byDate(a, b));
+  else if (state.sort === "date") list = [...list].sort(byDate);
+  else list = [...list].sort((a, b) => (b.if || 0) - (a.if || 0) || byDate(a, b));
+  $("count").innerHTML = `顯示 <b>${list.length}</b> 篇（共 ${state.data.articles.length} 篇）`;
+  if (!list.length) {
+    $("results").innerHTML = `<div class="empty">${SLEEPY}${state.specs.size ? "沒有符合條件的文章" : "請至少勾選一個次專科"}</div>`;
+    return;
+  }
+  $("results").innerHTML = TYPES.filter(t => state.types.has(t)).map(t => {
+    const items = list.filter(a => a.cat === t);
+    const open = state.open.has(t);
+    const shown = open ? items : items.slice(0, PREVIEW);
+    const rest = items.length - shown.length;
+    return `
+    <section class="sec ${open ? "open" : ""}">
+      <button class="sec-h" data-sec="${t}" aria-expanded="${open}">
+        <span class="ico">${TYPE_ICON[t]}</span>
+        <span>${TYPE_LABEL[t]}<br><span class="zh">${TYPE_ZH[t]}</span></span>
+        <span class="num">${items.length} 篇</span>${CHEV}
+      </button>
+      <div class="sec-b">
+        ${items.length ? shown.map(card).join("") : '<div class="sec-empty">本區沒有符合條件的文章</div>'}
+        ${rest > 0 ? `<button class="more" data-sec="${t}">展開其餘 ${rest} 篇 ▾</button>`
+          : (open && items.length > PREVIEW ? `<button class="more" data-sec="${t}">收合 ▴</button>` : "")}
+      </div>
+    </section>`;
+  }).join("");
+}
 
-GUIDE_RE = re.compile(r"\b(guidelines?|consensus statement|consensus recommendations?|expert consensus|"
-                      r"position statement|position paper|clinical practice recommendations?)\b", re.I)
+$("results").addEventListener("click", e => {
+  const b = e.target.closest("[data-sec]"); if (!b) return;
+  const t = b.dataset.sec, sec = b.closest(".sec");
+  state.open.has(t) ? state.open.delete(t) : state.open.add(t);
+  render();
+  if (!state.open.has(t)) { const el = document.querySelector(`.sec-h[data-sec="${t}"]`); el && el.scrollIntoView({block: "nearest"}); }
+});
 
+// 下次更新：下一個週一 00:00 UTC（= 台灣時間週一 08:00）
+function nextUpdate() {
+  const now = new Date();
+  const n = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  let add = (1 - n.getUTCDay() + 7) % 7;
+  if (add === 0 && now >= n) add = 7;
+  n.setUTCDate(n.getUTCDate() + add);
+  const tw = new Date(n.getTime() + 8 * 3600e3);
+  const p = x => String(x).padStart(2, "0");
+  return `${tw.getUTCFullYear()}-${p(tw.getUTCMonth() + 1)}-${p(tw.getUTCDate())}（週一）08:00 (UTC+8)`;
+}
+$("next").textContent = nextUpdate();
 
-def classify(pts, title=""):
-    """Original / Review / Meta / Guideline (same rules as the web page)."""
-    s = {p.lower() for p in pts}
-    t = title.lower()
-    if any("guideline" in p or "consensus" in p for p in s) or GUIDE_RE.search(t):
-        return "Guideline"
-    if s & {"meta-analysis", "systematic review", "network meta-analysis"} or re.search(
-            r"meta-analys|systematic review|umbrella review", t):
-        return "Meta"
-    if "review" in s or re.search(r"\b(narrative|scoping|literature|state-of-the-art) review\b", t):
-        return "Review"
-    return "Original"
+const md = d => d ? d.slice(5).replace("-", "/") : "";
+// 讀 JSON：加時間參數避開瀏覽器／CDN 快取，並回報清楚的錯誤
+function getJSON(file) {
+  const url = file + (file.includes("?") ? "&" : "?") + "t=" + Date.now();
+  return fetch(url, {cache: "no-store"}).then(r => r.text().then(txt => {
+    if (!r.ok) throw new Error(`${file}：HTTP ${r.status}`);
+    try { return JSON.parse(txt); }
+    catch (e) { throw new Error(`${file} 不是有效資料（HTTP ${r.status}，長度 ${txt.length}，開頭「${txt.slice(0, 40)}」）`); }
+  }));
+}
+function showWeek(file) {
+  return getJSON(file)
+    .catch(err => {                       // 存檔讀不到就退回最新一週
+      if (file === "data.json") throw err;
+      console.warn(err); return getJSON("data.json");
+    })
+    .then(d => {
+      state.data = d;
+      $("updated").textContent = d.updated;
+      $("days").textContent = d.daysBack;
+      const latest = $("week").options[0].value;
+      const isPast = $("week").value !== latest && $("week").selectedIndex > 0;
+      $("past").className = "past" + (isPast ? " on" : "");
+      $("past").innerHTML = isPast ? `正在看過去的週次：${md(d.from)} – ${md(d.to || d.week)}　<a id="back">回到本週 →</a>` : "";
+      if (isPast) $("back").onclick = () => { $("week").selectedIndex = 0; showWeek($("week").value); };
+      try { buildFilters(); render(); showLogic(d); }
+      catch (e) { throw new Error("顯示時發生錯誤：" + (e && e.message)); }
+    });
+}
+function showLogic(d) {
+  document.querySelectorAll(".L-days").forEach(e => e.textContent = d.daysBack);
+  const q = d.search; if (!q) return;
+  document.querySelectorAll(".L-max").forEach(e => e.textContent = q.maxPerSpecialty);
+  $("qlist").innerHTML =
+    `<details><summary>兒科條件</summary><code>${esc(q.pediatricFilter)}</code></details>
+     <details><summary>文章類型條件</summary><code>${esc(q.typeFilter)}</code></details>` +
+    Object.entries(q.queries).map(([n, s]) =>
+      `<details><summary>${esc(n)}</summary><code>${esc(s)}</code></details>`).join("");
+}
+function noData(err) {
+  console.error(err);
+  $("updated").textContent = "尚無資料";
+  $("results").innerHTML = '<div class="empty">' + SLEEPY + '資料讀取失敗（' + esc(err && err.message || err) + '）。請重新整理頁面；若剛更新，請等 GitHub Actions 執行完成。</div>';
+}
 
-
-def parse_articles(xml_bytes):
-    out = {}
-    root = ET.fromstring(xml_bytes)
-    for pa in root.iter("PubmedArticle"):
-        mc = pa.find("MedlineCitation")
-        pmid = mc.findtext("PMID")
-        art = mc.find("Article")
-        if art is None or not pmid:
-            continue
-        pts = [text(p) for p in art.findall("PublicationTypeList/PublicationType")]
-        authors = []
-        for a in art.findall("AuthorList/Author"):
-            if a.findtext("CollectiveName"):
-                authors.append(a.findtext("CollectiveName"))
-            elif a.findtext("LastName"):
-                authors.append(f"{a.findtext('LastName')} {a.findtext('Initials') or ''}".strip())
-        abs_parts = []
-        for at in art.findall("Abstract/AbstractText"):
-            label = at.get("Label")
-            t = text(at)
-            if t:
-                abs_parts.append(f"{label}: {t}" if label else t)
-        doi = ""
-        for aid in pa.findall("PubmedData/ArticleIdList/ArticleId"):
-            if aid.get("IdType") == "doi":
-                doi = (aid.text or "").strip()
-        if not doi:
-            for el in art.findall("ELocationID"):
-                if el.get("EIdType") == "doi":
-                    doi = (el.text or "").strip()
-        disp, sort_date = pub_date(art)
-        out[pmid] = {
-            "pmid": pmid,
-            "title": text(art.find("ArticleTitle")),
-            "journal": art.findtext("Journal/ISOAbbreviation") or art.findtext("Journal/Title") or "",
-            "date": disp,
-            "sortDate": sort_date,
-            "authors": authors[:6] + (["et al."] if len(authors) > 6 else []),
-            "abstract": "\n".join(abs_parts),
-            "type": classify(pts, text(art.find("ArticleTitle"))),
-            "pubTypes": pts,
-            "doi": doi,
-            "specialties": [],
-        }
-    return out
-
-
-def fetch_details(pmids):
-    result = {}
-    for i in range(0, len(pmids), 100):
-        chunk = pmids[i:i + 100]
-        result.update(parse_articles(eutils("efetch.fcgi", {"id": ",".join(chunk), "retmode": "xml"})))
-    return result
-
-
-def write_index(arch):
-    """Rebuild site/archive/index.json: list of weeks, newest first."""
-    weeks = []
-    for f in sorted(arch.glob("????-??-??.json"), reverse=True):
-        try:
-            if datetime.strptime(f.stem, "%Y-%m-%d").weekday() != 0:
-                continue          # 只列週一的週次（舊版以執行日命名的檔案略過）
-        except ValueError:
-            continue
-        try:
-            d = json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        weeks.append({"week": f.stem, "from": d.get("from", ""), "to": d.get("to", f.stem), "count": len(d.get("articles", [])),
-                      "file": f"archive/{f.name}"})
-    (arch / "index.json").write_text(json.dumps(weeks, ensure_ascii=False, indent=1), encoding="utf-8")
-
-
-TPE = timezone(timedelta(hours=8))
-
-
-def search_settings():
-    return {
-        "pediatricFilter": PEDS,
-        "typeFilter": TYPES,
-        "maxPerSpecialty": MAX_PER,
-        "poolPerSpecialty": POOL,
-        "ranking": "OpenAlex 2yr_mean_citedness",
-        "queries": {n: q for n, q in SPECIALTIES},
+$("results").innerHTML = '<div class="empty">' + SLEEPY + '文章載入中，請稍候…</div>';
+load();
+getJSON("archive/index.json")
+  .then(w => Array.isArray(w) ? w : [])
+  .catch(e => { console.warn(e); return []; })
+  .then(weeks => {
+    if (weeks.length) {
+      $("week").innerHTML = weeks.map((w, i) =>
+        `<option value="${esc(w.file)}">${i ? "" : "本週 · "}${md(w.from)}–${md(w.to || w.week)}（${w.count} 篇）</option>`).join("");
     }
-
-
-def week_key(now):
-    """本週週一（台灣時間）作為週次名稱。"""
-    return (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
-
-
-def main():
-    now = datetime.now(TPE)
-    arch = ROOT / "site" / "archive"
-    event = os.environ.get("RUN_EVENT", "")
-    # 上傳／修改檔案（push）觸發時：本週已有資料且搜尋條件沒變 → 不重抓，只重新發布
-    #                               搜尋條件（搜尋式、篇數上限）有改 → 自動重抓本週
-    cur = arch / f"{week_key(now)}.json"
-    if event == "push" and cur.exists():
-        try:
-            old = json.loads(cur.read_text(encoding="utf-8")).get("search")
-        except (OSError, ValueError):
-            old = None
-        if old == search_settings():
-            print(f"Week {week_key(now)} already archived with same settings; push run only redeploys.")
-            write_index(arch)
-            return
-        print("Search settings changed; refetching this week.")
-    # 1) 每科抓近 DAYS_BACK 天所有符合文章（候選池）
-    pools, counts = {}, {}
-    for name, q in SPECIALTIES:
-        ids, total = search(f"{q} AND {PEDS} AND {TYPES}")
-        pools[name], counts[name] = ids, total
-        print(f"{name}: pool {len(ids)} / {total}")
-    all_ids = sorted({i for ids in pools.values() for i in ids})
-
-    # 2) 取期刊 ISSN → OpenAlex 期刊影響力（IF 等價指標）
-    summ = summaries(all_ids)
-    impact = journal_impact([x for v in summ.values() for x in v["issns"]])
-    def score(pmid):
-        v = summ.get(pmid, {})
-        return max([impact.get(x, 0) for x in v.get("issns", [])] or [0])
-    print(f"Journals with impact data: {len(impact)} ISSNs; candidates {len(all_ids)}")
-
-    # 3) 每科依影響力排序（同分看日期），取前 MAX_PER 篇
-    chosen = {}
-    for name, ids in pools.items():
-        ranked = sorted(ids, key=lambda i: (score(i), summ.get(i, {}).get("sortpubdate", ""), i), reverse=True)
-        for i in ranked[:MAX_PER]:
-            chosen.setdefault(i, []).append(name)
-
-    # 4) 只對入選文章抓完整資料
-    articles = fetch_details(list(chosen))
-    for i, a in articles.items():
-        a["specialties"] = chosen.get(i, [])
-        a["if"] = score(i)
-
-    items = sorted(articles.values(), key=lambda a: (a["if"], a["sortDate"], a["pmid"]), reverse=True)
-    payload = {
-        "updated": now.strftime("%Y-%m-%d %H:%M (UTC+8)"),
-        "daysBack": DAYS_BACK,
-        "specialties": [n for n, _ in SPECIALTIES],
-        "totals": counts,
-        "search": search_settings(),
-        "articles": items,
-    }
-    payload["week"] = week_key(now)
-    payload["to"] = now.strftime("%Y-%m-%d")
-    payload["from"] = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%d")
-    site = ROOT / "site"
-    arch.mkdir(parents=True, exist_ok=True)
-    dumped = json.dumps(payload, ensure_ascii=False)
-    (site / "data.json").write_text(dumped, encoding="utf-8")
-    (arch / f"{payload['week']}.json").write_text(dumped, encoding="utf-8")
-    write_index(arch)
-    print(f"Saved {len(items)} unique articles.")
-    if not items:
-        print("Warning: no articles found.", file=sys.stderr)
-
-
-if __name__ == "__main__":
-    main()
-
+    return showWeek($("week").value);
+  })
+  .catch(noData);
+$("week").addEventListener("change", e => { window.scrollTo({top: 0, behavior: "smooth"}); showWeek(e.target.value).catch(noData); });
+$("all").onclick = () => setAll(true);
+$("none").onclick = () => setAll(false);
+$("q").addEventListener("input", e => { state.q = e.target.value; if (state.data) render(); });
+$("sort").addEventListener("change", e => { state.sort = e.target.value; if (state.data) render(); });
+</script>
+</body>
+</html>
