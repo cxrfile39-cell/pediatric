@@ -127,6 +127,8 @@
   .card h3 a{text-decoration:none;color:var(--ink)}
   .card h3 a:hover{color:var(--c2)}
   .sub{font-size:.85rem;color:var(--muted)}
+  .zhs{margin:2px 0 8px;padding:7px 12px;border-radius:12px;background:var(--c2-soft);color:#3A2A24;font-size:.92rem;line-height:1.55}
+  .zhs span{display:inline-block;margin-right:8px;padding:0 8px;border-radius:999px;background:var(--c2);color:#fff;font-size:.72rem;font-weight:700;vertical-align:1px}
   .sub .if{display:inline-block;background:var(--c2);color:#fff;font-weight:700;border-radius:999px;padding:0 8px;font-size:.76rem;margin-right:2px}
   .sub i{color:var(--c1);font-style:normal;font-weight:700}
   .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
@@ -304,6 +306,7 @@
       <li><b>兒科條件</b>：MeSH 為 Child、Infant、Adolescent、Pediatrics，或標題／摘要含 pediatric、paediatric、child、infant、neonat、newborn、adolescen 等字。</li>
       <li><b>次專科條件</b>：每個次專科各有一組 MeSH 主題詞與標題／摘要關鍵字（見下方完整搜尋式），三者以 AND 結合：<i>次專科</i> AND <i>兒科</i> AND <i>文章類型</i>。</li>
       <li><b>關鍵字搜尋</b>：7 天時在本週收錄的文章中搜尋；30 天／1 年／2 年時，關鍵字會直接加入 PubMed 查詢條件。</li>
+      <li><b>中文重點</b>：每週由 Claude 為共識／指引、系統性回顧／統合分析全部，以及其餘 IF 最高的 200 篇撰寫約 40 字的一句話重點（可用中文搜尋）；為 AI 依標題與摘要整理，僅供快速瀏覽，請以原文為準。</li>
       <li><b>收錄類型</b>：Journal Article、Review、Systematic Review、Meta-Analysis、Guideline、Practice Guideline、Consensus Development Conference。</li>
       <li><b>排除</b>：Comment、Editorial、Letter、Erratum、Case Reports、Retracted Publication、Preprint；並限定<b>有摘要</b>、<b>英文</b>。</li>
       <li><b>篇數</b>：所有區間皆<b>不限篇數</b>，符合條件的文章全部列出；同一篇符合多個次專科時只列一次。</li>
@@ -377,7 +380,7 @@ function save() {
 
 function buildFilters() {
   const d = state.data;
-  d.articles.forEach(a => { a.cat = classify(a); a._hay = norm([a.title, a.journal, a.abstract, a.authors.join(" ")].join(" ")); });
+  d.articles.forEach(a => { a.cat = classify(a); a._hay = norm([a.title, a.zh, a.journal, a.abstract, a.authors.join(" ")].join(" ")); });
   const perSpec = {};
   d.articles.forEach(a => a.specialties.forEach(s => perSpec[s] = (perSpec[s] || 0) + 1));
   const known = new Set(d.specialties);
@@ -428,6 +431,7 @@ function card(a) {
   return `
     <article class="card ${a.cat}">
       <h3><a href="https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/" target="_blank" rel="noopener">${esc(a.title)}</a></h3>
+      ${a.zh ? `<div class="zhs"><span>中文重點</span>${esc(a.zh)}</div>` : ""}
       <div class="sub">${a.if ? `<span class="if" title="期刊影響力（OpenAlex 2-year mean citedness）">IF≈${a.if.toFixed(1)}</span> ` : ""}<i>${esc(a.journal)}</i> · ${esc(a.date)} · ${esc(a.authors.join(", "))}</div>
       <div class="tags">
         <span class="tag type ${a.cat}">${TYPE_LABEL[a.cat]}</span>
@@ -730,12 +734,21 @@ function getJSON(file) {
     catch (e) { throw new Error(`${file} 不是有效資料（HTTP ${r.status}，長度 ${txt.length}，開頭「${txt.slice(0, 40)}」）`); }
   }));
 }
+function withZh(d) {        // 合併當週中文重點（site/zh/<週次>.json，可能尚未產生）
+  if (!d || !d.week) return d;
+  return getJSON(`zh/${d.week}.json`).then(zh => {
+    d.articles.forEach(a => { if (zh[a.pmid]) a.zh = zh[a.pmid]; });
+    d.zhCount = Object.keys(zh).length;
+    return d;
+  }, () => d);
+}
 function showWeek(file) {
   return getJSON(file)
     .catch(err => {                       // 存檔讀不到就退回最新一週
       if (file === "data.json") throw err;
       console.warn(err); return getJSON("data.json");
     })
+    .then(withZh)
     .then(d => {
       if (curRange !== 7) return;
       const isPast = $("week").selectedIndex > 0;
