@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """中文一句話重點：挑選文章、合併 Claude 寫好的摘要。
 
-  python3 scripts/zh_summaries.py todo  [--top 200]   # 產生 work/zh_todo.jsonl（待撰寫清單）
+  python3 scripts/zh_summaries.py todo  [--top N]     # 產生 work/zh_todo.jsonl（待撰寫清單）
   python3 scripts/zh_summaries.py merge work/zh_new.json  # 合併到 site/zh/<週次>.json
 
-挑選範圍：共識／指引、系統性回顧／統合分析全部，其餘（原著、綜論）取 IF 最高的 --top 篇。
+挑選範圍：共識／指引、系統性回顧／統合分析全部；原著與綜論預設不寫（--top N 可另加 IF 最高的 N 篇）。
 已寫過的文章不會重複列出。只用 Python 標準函式庫。
 """
 import json
@@ -95,7 +95,7 @@ def merge(path):
 
 if __name__ == "__main__":
     if len(sys.argv) >= 2 and sys.argv[1] == "todo":
-        n = int(sys.argv[sys.argv.index("--top") + 1]) if "--top" in sys.argv else 200
+        n = int(sys.argv[sys.argv.index("--top") + 1]) if "--top" in sys.argv else 0
         todo(n)
     elif len(sys.argv) >= 3 and sys.argv[1] == "merge":
         merge(sys.argv[2])
