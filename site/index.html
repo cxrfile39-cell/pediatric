@@ -44,8 +44,6 @@
   .balloons{transform:translateX(110px)}
   @media (max-width:1100px){.balloons{display:none}}
   .meta b{white-space:nowrap}
-  .meta .hits{background:none;padding:0;display:inline-flex;align-items:center}
-  .meta .hits img{display:block;height:20px;border-radius:6px;border:1.5px solid rgba(255,255,255,.6)}
   .meta .maker{color:#fff;font-weight:700}
   @media (max-width:600px){
     .mascot{width:58px;height:58px}
@@ -252,10 +250,7 @@
         <span>下次更新 <b id="next">計算中…</b></span>
         <span>收錄範圍 <b id="span">—</b></span>
         <span>製作者 <strong class="maker">JH CHIU MD × Claude 5.5</strong></span>
-        <span class="hits" title="瀏覽人次：今日 / 累計（每次開啟頁面計一次）">
-          <img src="https://hits.sh/cxrfile39-cell.github.io/pediatric.svg?view=today-total&amp;style=flat-square&amp;label=%E7%80%8F%E8%A6%BD%E4%BA%BA%E6%AC%A1&amp;color=e4572e&amp;labelColor=12355b"
-               alt="瀏覽人次" height="20" onerror="this.parentElement.style.display='none'">
-        </span>
+        <span class="visits" id="visits" hidden>瀏覽人次 <b id="visitN">—</b></span>
       </div>
     </div>
   </div>
@@ -313,7 +308,7 @@
       <li><b>次專科條件</b>：每個次專科各有一組 MeSH 主題詞與標題／摘要關鍵字（見下方完整搜尋式），三者以 AND 結合：<i>次專科</i> AND <i>兒科</i> AND <i>文章類型</i>。</li>
       <li><b>關鍵字搜尋</b>：7 天時在本週收錄的文章中搜尋；30 天／1 年／2 年時，關鍵字會直接加入 PubMed 查詢條件。</li>
       <li><b>中文重點</b>：每週由 Claude 為共識／指引、系統性回顧／統合分析兩類文章撰寫約 40 字的一句話重點（原著與綜論不寫）（可用中文搜尋）；為 AI 依標題與摘要整理，僅供快速瀏覽，請以原文為準。</li>
-      <li><b>瀏覽人次</b>：頁首徽章顯示「今日／累計」瀏覽次數，由免費服務 hits.sh 計算，每開啟一次頁面計一次（重新整理也會計入），僅供參考。</li>
+      <li><b>瀏覽人次</b>：頁首顯示網站累計瀏覽人次，由 GoatCounter 統計（不使用 cookie、不收集個人資料；短時間內重新整理不重複計算），僅供參考。</li>
       <li><b>收錄類型</b>：Journal Article、Review、Systematic Review、Meta-Analysis、Guideline、Practice Guideline、Consensus Development Conference。</li>
       <li><b>排除</b>：Comment、Editorial、Letter、Erratum、Case Reports、Retracted Publication、Preprint；並限定<b>有摘要</b>、<b>英文</b>。</li>
       <li><b>篇數</b>：所有區間皆<b>不限篇數</b>，符合條件的文章全部列出；同一篇符合多個次專科時只列一次。</li>
@@ -800,6 +795,15 @@ $("all").onclick = () => setAll(true);
 $("none").onclick = () => setAll(false);
 $("q").addEventListener("input", e => { state.q = e.target.value; if (state.data) render(); });
 $("sort").addEventListener("change", e => { state.sort = e.target.value; if (state.data) render(); });
+</script>
+<!-- 瀏覽人次統計：GoatCounter -->
+<script data-goatcounter="https://cxrfile2.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<script>
+// 顯示累計瀏覽人次（需在 GoatCounter 設定中開啟 "Allow adding visitor counts on your website"）
+fetch("https://cxrfile2.goatcounter.com/counter/TOTAL.json")
+  .then(r => r.ok ? r.json() : Promise.reject(r.status))
+  .then(j => { document.getElementById("visitN").textContent = j.count; document.getElementById("visits").hidden = false; })
+  .catch(() => {});
 </script>
 </body>
 </html>
